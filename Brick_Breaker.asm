@@ -2,27 +2,27 @@ TITLE Brick Breaker Game (Brick_Breaker.asm)
 ; A simple Brick Breaker game with Windows GUI
 ; Uses Win32 API for window and GDI for drawing
 
-.386
-.model flat, stdcall
-option casemap:none
+.386                                         ; use 386 instruction set
+.model flat, stdcall                         ; flat memory model, stdcall convention
+option casemap:none                          ; case sensitive identifiers
 
 ; ============================================
 ; Constants
 ; ============================================
-NULL                EQU 0
-WS_OVERLAPPED       EQU 00000000h
-WS_CAPTION          EQU 00C00000h
-WS_SYSMENU          EQU 00080000h
-WS_MINIMIZEBOX      EQU 00020000h
-WS_VISIBLE          EQU 10000000h
-CS_HREDRAW          EQU 0002h
-CS_VREDRAW          EQU 0001h
-IDI_APPLICATION     EQU 32512
-IDC_ARROW           EQU 32512
-SW_SHOW             EQU 5
-CW_USEDEFAULT       EQU 80000000h
-WM_CREATE           EQU 0001h
-WM_DESTROY          EQU 0002h
+NULL                EQU 0                    ; null pointer value
+WS_OVERLAPPED       EQU 00000000h            ; overlapped window style
+WS_CAPTION          EQU 00C00000h            ; window has title bar
+WS_SYSMENU          EQU 00080000h            ; window has system menu
+WS_MINIMIZEBOX      EQU 00020000h            ; window has minimize button
+WS_VISIBLE          EQU 10000000h            ; window is initially visible
+CS_HREDRAW          EQU 0002h                ; redraw on horizontal resize
+CS_VREDRAW          EQU 0001h                ; redraw on vertical resize
+IDI_APPLICATION     EQU 32512                ; default application icon
+IDC_ARROW           EQU 32512                ; default arrow cursor
+SW_SHOW             EQU 5                    ; show window command
+CW_USEDEFAULT       EQU 80000000h            ; let windows choose position
+WM_CREATE           EQU 0001h                ; window just created
+WM_DESTROY          EQU 0002h                ; window being destroyed
 WM_PAINT            EQU 000Fh            ; window needs repainting
 WM_KEYDOWN          EQU 0100h            ; a key was pressed
 WM_TIMER            EQU 0113h            ; timer tick message
@@ -34,15 +34,15 @@ VK_LEFT             EQU 25h              ; left arrow key code
 VK_RIGHT            EQU 27h              ; right arrow key code
 VK_SPACE            EQU 20h              ; space bar key code
 VK_ESCAPE           EQU 1Bh              ; escape key code
-WINDOW_WIDTH        EQU 640
-WINDOW_HEIGHT       EQU 500
+WINDOW_WIDTH        EQU 640                  ; game window width in pixels
+WINDOW_HEIGHT       EQU 500                  ; game window height in pixels
 
 ; Game area bounds
-BORDER_LEFT         EQU 30
-BORDER_TOP          EQU 50
-BORDER_RIGHT        EQU 610
-BORDER_BOTTOM       EQU 450
-BORDER_THICKNESS    EQU 4
+BORDER_LEFT         EQU 30                   ; left wall x position
+BORDER_TOP          EQU 50                   ; top wall y position
+BORDER_RIGHT        EQU 610                  ; right wall x position
+BORDER_BOTTOM       EQU 450                  ; bottom open area y position
+BORDER_THICKNESS    EQU 4                    ; thickness of wall in pixels
 
 ; Brick layout constants
 BRICK_ROWS          EQU 3               ; 3 rows of bricks
@@ -201,6 +201,7 @@ fmtStr          BYTE "%d", 0                ; format string for numbers
 winMsg          BYTE "YOU WIN!", 0          ; win message text
 loseMsg         BYTE "GAME OVER", 0         ; lose message text
 restartMsg      BYTE "Press SPACE to restart", 0 ; restart hint
+startMsg        BYTE "Press SPACE to launch ball", 0 ; start hint
 
 ; ============================================
 ; Code
@@ -382,6 +383,15 @@ WndProc PROC hWin:DWORD, uMsg:DWORD, wParam:DWORD, lParam:DWORD
         invoke TextOutA, hdc, 260, 230, ADDR loseMsg, 9 ; show lose text
         invoke TextOutA, hdc, 230, 260, ADDR restartMsg, 22 ; show restart hint
     doneHUD:
+
+        ; show start hint if ball is on paddle and game is active
+        cmp gameState, 0                     ; game still playing?
+        jne skipStartMsg                     ; if not, skip
+        cmp ballActive, 0                    ; ball on paddle?
+        jne skipStartMsg                     ; if launched, skip
+        invoke SetTextColor, hdc, 00AAAAAAh  ; light gray text
+        invoke TextOutA, hdc, 225, 400, ADDR startMsg, 26 ; show hint
+    skipStartMsg:
 
         invoke EndPaint, hWin, ADDR ps       ; finish painting
         xor eax, eax                         ; return 0 (message handled)
@@ -633,6 +643,8 @@ WndProc PROC hWin:DWORD, uMsg:DWORD, wParam:DWORD, lParam:DWORD
             mov eax, BALL_SPEED              ; get speed value
             neg eax                          ; make it negative (upward)
             mov ballDY, eax                  ; set y velocity up
+        .ELSEIF eax == VK_ESCAPE             ; escape key
+            invoke PostQuitMessage, 0         ; quit the game
         .ENDIF
 
     doneKey:

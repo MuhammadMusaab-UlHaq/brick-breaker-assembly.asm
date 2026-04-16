@@ -211,6 +211,9 @@ winMsg          BYTE "YOU WIN!", 0          ; win message text
 loseMsg         BYTE "GAME OVER", 0         ; lose message text
 restartMsg      BYTE "Press SPACE to restart", 0 ; restart hint
 startMsg        BYTE "Press SPACE to launch ball", 0 ; start hint
+hint1Msg        BYTE "Left/Right Arrows to move", 0  ; control hint
+hint2Msg        BYTE "Red bricks give 5s solid base!", 0 ; powerup hint
+hint3Msg        BYTE "Clear under 2m for +50pt bonus", 0 ; bonus hint
 
 ; ============================================
 ; Code
@@ -416,13 +419,21 @@ WndProc PROC hWin:DWORD, uMsg:DWORD, wParam:DWORD, lParam:DWORD
         invoke TextOutA, hdc, 230, 260, ADDR restartMsg, 22 ; show restart hint
     doneHUD:
 
-        ; show start hint if ball is on paddle and game is active
+        ; show start hints if ball is on paddle and game just started
         cmp gameState, 0                     ; game still playing?
         jne skipStartMsg                     ; if not, skip
         cmp ballActive, 0                    ; ball on paddle?
         jne skipStartMsg                     ; if launched, skip
+        
         invoke SetTextColor, hdc, 00AAAAAAh  ; light gray text
-        invoke TextOutA, hdc, 225, 400, ADDR startMsg, 26 ; show hint
+        invoke TextOutA, hdc, 225, 400, ADDR startMsg, 26 ; show start hint
+        
+        cmp timeSeconds, 0                   ; is it the very beginning of the game?
+        jg skipStartMsg                      ; if time > 0, don't show the other hints
+        invoke SetTextColor, hdc, 00888888h  ; darker gray
+        invoke TextOutA, hdc, 230, 240, ADDR hint1Msg, 25 ; control hint
+        invoke TextOutA, hdc, 210, 260, ADDR hint2Msg, 30 ; powerup hint
+        invoke TextOutA, hdc, 210, 280, ADDR hint3Msg, 30 ; bonus hint
     skipStartMsg:
 
         invoke EndPaint, hWin, ADDR ps       ; finish painting

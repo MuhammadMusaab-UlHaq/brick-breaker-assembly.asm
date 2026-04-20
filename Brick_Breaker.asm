@@ -27,7 +27,9 @@ WM_PAINT            EQU 000Fh            ; window needs repainting
 WM_KEYDOWN          EQU 0100h            ; a key was pressed
 WM_TIMER            EQU 0113h            ; timer tick message
 TRUE                EQU 1                ; boolean true
+FALSE               EQU 0                ; boolean false
 TRANSPARENT_BK      EQU 1                ; transparent background mode
+SRCCOPY             EQU 00CC0020h        ; bitblt copy code
 
 ; Virtual key codes for input
 VK_LEFT             EQU 25h              ; left arrow key code
@@ -160,6 +162,10 @@ TextOutA PROTO :DWORD,:DWORD,:DWORD,:DWORD,:DWORD
 Rectangle PROTO :DWORD,:DWORD,:DWORD,:DWORD,:DWORD
 SelectObject PROTO :DWORD,:DWORD
 GetStockObject PROTO :DWORD
+CreateCompatibleDC PROTO :DWORD
+CreateCompatibleBitmap PROTO :DWORD,:DWORD,:DWORD
+BitBlt PROTO :DWORD,:DWORD,:DWORD,:DWORD,:DWORD,:DWORD,:DWORD,:DWORD,:DWORD
+DeleteDC PROTO :DWORD
 
 ; ============================================
 ; Data
@@ -242,7 +248,10 @@ endQuitMsg      BYTE "PRESS Q TO QUIT GAME", 0
 ; --------------------------------------------
 WndProc PROC hWin:DWORD, uMsg:DWORD, wParam:DWORD, lParam:DWORD
     LOCAL ps:PAINTSTRUCT                    ; paint struct for BeginPaint
-    LOCAL hdc:DWORD                         ; device context handle
+    LOCAL hdc:DWORD                         ; memory device context handle
+    LOCAL screenDC:DWORD                    ; actual screen device context
+    LOCAL hBitmap:DWORD                     ; memory bitmap
+    LOCAL hOldBitmap:DWORD                  ; old bitmap
     LOCAL rc:RECT                           ; temp rectangle for drawing
     LOCAL hBrush:DWORD                      ; temp brush handle
     LOCAL brickRow:DWORD                    ; current brick row counter
@@ -254,7 +263,20 @@ WndProc PROC hWin:DWORD, uMsg:DWORD, wParam:DWORD, lParam:DWORD
 
     .IF eax == WM_PAINT
         invoke BeginPaint, hWin, ADDR ps
-        mov hdc, eax
+        mov screenDC, eax
+
+        ; --- double buffering setup ---
+        invoke CreateCompatibleDC, screenDC
+        mov hdc, eax                               ; use hdc as the memory DC
+        invoke GetClientRect, hWin, ADDR rc
+        invoke CreateCompatibleBitmap, screenDC, rc.right, rc.bottom
+        mov hBitmap, eax
+        invoke SelectObject, hdc, hBitmap
+        mov hOldBitmap, eax
+
+        ; fill background black
+        invoke GetStockObject, 4                   ; BLACK_BRUSH
+        invoke FillRect, hdc, ADDR rc, eax
 
         ; --- branch based on game state ---
         cmp gameState, 3                     ; title screen?
@@ -490,6 +512,14 @@ WndProc PROC hWin:DWORD, uMsg:DWORD, wParam:DWORD, lParam:DWORD
         jmp donePaint
 
     donePaint:
+        ; copy memory DC to screen DC
+        invoke BitBlt, screenDC, 0, 0, rc.right, rc.bottom, hdc, 0, 0, SRCCOPY
+        
+        ; cleanup double buffering
+        invoke SelectObject, hdc, hOldBitmap
+        invoke DeleteObject, hBitmap
+        invoke DeleteDC, hdc
+
         invoke EndPaint, hWin, ADDR ps       ; finish painting
         xor eax, eax                         ; return 0 (message handled)
         ret
@@ -755,7 +785,7 @@ WndProc PROC hWin:DWORD, uMsg:DWORD, wParam:DWORD, lParam:DWORD
         mov ballY, eax                       ; update ball y
     skipTrack:
 
-        invoke InvalidateRect, hWin, NULL, TRUE ; mark window for repaint
+        invoke InvalidateRect, hWin, NULL, FALSE ; mark window for repaint (FALSE = don't erase background)
         xor eax, eax                         ; return 0
         ret
 

@@ -2,8 +2,7 @@
 REM build.bat - Build Brick Breaker (Win32 GUI)
 SET PATH=C:\Masm615
 SET INCLUDE=C:\Masm615\INCLUDE
-SET LIB=C:\Masm615\LIB
-
+SET LIB=C:\Masm615\LIB;C:\irvine
 ML -Zi -c -Fl -coff %1.asm
 if errorlevel 1 goto terminate
 

@@ -1,13 +1,13 @@
 TITLE Brick Breaker Game (Brick_Breaker.asm)
-; A simple Brick Breaker game with Windows GUI
-; Uses Win32 API for window and GDI for drawing
+; A Brick Breaker game with Windows GUI
+; Internal logic aligned with x86 Assembly Course concepts (Loops, Stack, Mul/Div, Bitwise)
 
 .386                                         ; use 386 instruction set
 .model flat, stdcall                         ; flat memory model, stdcall convention
 option casemap:none                          ; case sensitive identifiers
 
 ; ============================================
-; Constants
+; Constants (Win32 API requirements)
 ; ============================================
 NULL                EQU 0                    
 WS_OVERLAPPED       EQU 00000000h            
@@ -123,7 +123,7 @@ PAINTSTRUCT ENDS
 GetModuleHandleA PROTO :DWORD
 ExitProcess PROTO :DWORD
 Beep PROTO :DWORD,:DWORD
-GetTickCount PROTO                           ; Added for true randomness!
+GetTickCount PROTO                           
 RegisterClassExA PROTO :DWORD
 CreateWindowExA PROTO :DWORD,:DWORD,:DWORD,:DWORD,:DWORD,:DWORD,:DWORD,:DWORD,:DWORD,:DWORD,:DWORD,:DWORD
 ShowWindow PROTO :DWORD,:DWORD
@@ -142,7 +142,6 @@ FillRect PROTO :DWORD,:DWORD,:DWORD
 SetTimer PROTO :DWORD,:DWORD,:DWORD,:DWORD 
 KillTimer PROTO :DWORD,:DWORD             
 InvalidateRect PROTO :DWORD,:DWORD,:DWORD 
-MessageBoxA PROTO :DWORD,:DWORD,:DWORD,:DWORD 
 wsprintfA PROTO C :DWORD,:DWORD,:VARARG   
 CreateSolidBrush PROTO :DWORD
 DeleteObject PROTO :DWORD
@@ -182,18 +181,16 @@ ballDX          SDWORD 3
 ballDY          SDWORD -3                   
 ballActive      DWORD 0                     
 
-; --- Ball 2 Logic ---
 ball2X          DWORD 0                     
 ball2Y          DWORD 0                     
 ball2DX         SDWORD 0                    
 ball2DY         SDWORD 0                    
 ball2Active     DWORD 0                     
 
-; --- Powerup Logic ---
 powerX          DWORD 0                     
 powerY          DWORD 0                     
 powerActive     DWORD 0                     
-powerSpeed      DWORD 4                     ; Falls slightly faster now
+powerSpeed      DWORD 4                     
 
 score           DWORD 0                     
 lives           DWORD 3                     
@@ -202,8 +199,6 @@ gameState       DWORD 3
 timerTicks      DWORD 0                     
 timeSeconds     DWORD 0                     
 solidBaseTimer  DWORD 0                     
-
-; --- Round Logic ---
 currentRound    DWORD 1                     
 
 scoreLabel      BYTE "Score: ", 0           
@@ -235,10 +230,33 @@ endRestartMsg   BYTE "PRESS R TO RESTART YOUR GAME", 0
 endQuitMsg      BYTE "PRESS Q TO QUIT GAME", 0
 
 ; ============================================
-; Code
+; Code Segment
 ; ============================================
 .code
 
+; ---------------------------------------------------------
+; [Lab 6: Stacks and Procedures] 
+; Procedure to reset all bricks back to active state (1)
+; Uses PUSHAD/POPAD to preserve register states
+; ---------------------------------------------------------
+ResetBricks PROC
+    PUSHAD                      ; Push all general purpose registers to stack
+
+    mov ecx, TOTAL_BRICKS       ; [Lab 4: Loops] Set loop counter
+    mov esi, OFFSET bricks      ; [Lab 4: Arrays] Register indirect addressing base
+
+L_ResetLoop:
+    mov BYTE PTR [esi], 1       ; [Lab 3: Memory Access] Write 1 to memory
+    inc esi                     ; Point to next element in array
+    LOOP L_ResetLoop            ; Decrement ECX and jump if not zero
+
+    POPAD                       ; Pop all registers from stack
+    RET                         ; Return from procedure
+ResetBricks ENDP
+
+; ---------------------------------------------------------
+; Main Window Procedure
+; ---------------------------------------------------------
 WndProc PROC hWin:DWORD, uMsg:DWORD, wParam:DWORD, lParam:DWORD
     LOCAL ps:PAINTSTRUCT                    
     LOCAL hdc:DWORD                         
@@ -269,6 +287,7 @@ WndProc PROC hWin:DWORD, uMsg:DWORD, wParam:DWORD, lParam:DWORD
         invoke GetStockObject, 4                   
         invoke FillRect, hdc, ADDR rc, eax
 
+        ; [Lab 7: Conditional Structure]
         cmp gameState, 3                     
         je drawTitleScreen
         cmp gameState, 4                     
@@ -325,7 +344,7 @@ WndProc PROC hWin:DWORD, uMsg:DWORD, wParam:DWORD, lParam:DWORD
         jge doneDrawBricks                   
 
         mov eax, brickRow                    
-        shl eax, 2                           
+        shl eax, 2                           ; [Lab 8: Bitwise Shift] Multiply by 4
         mov eax, [rowColors + eax]           
         invoke CreateSolidBrush, eax         
         mov hBrush, eax                      
@@ -404,10 +423,9 @@ WndProc PROC hWin:DWORD, uMsg:DWORD, wParam:DWORD, lParam:DWORD
         invoke FillRect, hdc, ADDR rc, hBrush 
         invoke DeleteObject, hBrush          
 
-        ; --- DRAW BALL 2 ---
         cmp ball2Active, 1
         jne skipDrawBall2
-        invoke CreateSolidBrush, 0000FFFFh   ; Yellow ball
+        invoke CreateSolidBrush, 0000FFFFh   
         mov hBrush, eax
         mov eax, ball2X
         mov rc.left, eax
@@ -423,10 +441,9 @@ WndProc PROC hWin:DWORD, uMsg:DWORD, wParam:DWORD, lParam:DWORD
         invoke DeleteObject, hBrush
     skipDrawBall2:
 
-        ; --- DRAW POWERUP ---
         cmp powerActive, 1
         jne skipDrawPower
-        invoke CreateSolidBrush, 00FF00FFh   ; BRIGHT MAGENTA/PINK - impossible to miss
+        invoke CreateSolidBrush, 00FF00FFh   
         mov hBrush, eax
         mov eax, powerX
         mov rc.left, eax
@@ -546,35 +563,33 @@ WndProc PROC hWin:DWORD, uMsg:DWORD, wParam:DWORD, lParam:DWORD
     skipSolidUpdate:
 
         ; ==================================
-        ; TRUE RANDOM POWERUP LOGIC
+        ; POWERUP GENERATOR
         ; ==================================
         cmp gameState, 0                     
-        jne skipPowerSpawnCheck              ; Don't spawn if game over
+        jne skipPowerSpawnCheck              
         cmp ballActive, 1                    
-        jne skipPowerSpawnCheck              ; Don't spawn until ball is launched
+        jne skipPowerSpawnCheck              
         
         cmp timeSeconds, 5                   
-        jl skipPowerSpawnCheck               ; Wait for 5 seconds into the round
+        jl skipPowerSpawnCheck               
         cmp powerActive, 1                   
-        je skipPowerSpawnCheck               ; Don't spawn if one is already falling
+        je skipPowerSpawnCheck               
         
-        ; Roll the random dice using GetTickCount
+        ; [Lab 8: Bitwise AND] Masking value for randomness
         invoke GetTickCount
         mov edx, eax
-        and edx, 255                         ; Mask to get a number between 0 and 255
-        cmp edx, 50                          ; Random chance (~1/256) per frame. Avg 2 second wait.
-        jne skipPowerSpawnCheck              ; If not a match, skip this frame
+        and edx, 255                         ; Bitwise AND to keep lower 8 bits (0-255)
+        cmp edx, 50                          
+        jne skipPowerSpawnCheck              
         
-        ; Spawn the powerup!
         mov powerActive, 1
         mov powerY, BORDER_TOP
         
-        ; Calculate random X coordinate
-        shr eax, 8                           ; Shift bits so X is somewhat independent of the spawn check
+        shr eax, 8                           ; [Lab 8: Bitwise Shift] Divide by 256
         xor edx, edx
-        mov ebx, 480                         ; Width of spawn area
-        div ebx                              ; Remainder in EDX is 0-479
-        add edx, BORDER_LEFT + 20            ; Offset to keep it inside the walls
+        mov ebx, 480                         
+        div ebx                              ; [Lab 9: Division] Generate X coordinate
+        add edx, BORDER_LEFT + 20            
         mov powerX, edx
         
     skipPowerSpawnCheck:
@@ -588,13 +603,14 @@ WndProc PROC hWin:DWORD, uMsg:DWORD, wParam:DWORD, lParam:DWORD
         add eax, powerSpeed
         mov powerY, eax
 
-        ; check paddle collision
+        ; [Lab 7: Conditional Structures]
         mov eax, powerY
         add eax, POWERUP_SIZE 
         cmp eax, PADDLE_Y
-        jl checkPowerMissed
+        jl checkPowerMissed                  ; Jump if Less (JL)
         cmp eax, PADDLE_Y + PADDLE_HEIGHT
-        jg checkPowerMissed
+        jg checkPowerMissed                  ; Jump if Greater (JG)
+        
         mov eax, powerX
         add eax, POWERUP_SIZE
         cmp eax, paddleX
@@ -608,9 +624,12 @@ WndProc PROC hWin:DWORD, uMsg:DWORD, wParam:DWORD, lParam:DWORD
         ; Caught powerup! Spawn Ball 2
         mov powerActive, 0
         mov ball2Active, 1
-        mov eax, paddleX
-        add eax, PADDLE_WIDTH / 2
+        
+        mov eax, PADDLE_WIDTH
+        shr eax, 1                           ; [Lab 8: Bitwise Shift] Divide width by 2 to find center
+        add eax, paddleX
         mov ball2X, eax
+        
         mov eax, PADDLE_Y
         sub eax, BALL_SIZE
         mov ball2Y, eax
@@ -687,23 +706,28 @@ WndProc PROC hWin:DWORD, uMsg:DWORD, wParam:DWORD, lParam:DWORD
         cmp eax, 0                           
         je nextBrickCheck                    
 
+        ; [Lab 9: Multiplication and Division]
+        ; Calculate 2D Array Row and Column from 1D Index (ecx)
         push ecx                             
         mov eax, ecx                         
         xor edx, edx                         
         mov ebx, BRICK_COLS                  
-        div ebx                              
+        div ebx                              ; DIV instruction: EDX = Remainder (Col), EAX = Quotient (Row)
         push edx                             
+        
         mov ebx, BRICK_HEIGHT + BRICK_GAP    
-        imul eax, ebx                        
+        imul eax, ebx                        ; Multiply Row by Height
         add eax, BRICK_START_Y               
-        mov esi, eax                         
+        mov esi, eax                         ; ESI holds Y pos
+        
         pop edx                              
         mov eax, edx                         
         mov ebx, BRICK_WIDTH + BRICK_GAP     
-        imul eax, ebx                        
+        imul eax, ebx                        ; Multiply Col by Width
         add eax, BRICK_START_X               
-        mov edi, eax                         
+        mov edi, eax                         ; EDI holds X pos
 
+        ; Collision bounding box check
         mov eax, ballX                       
         add eax, BALL_SIZE                   
         cmp eax, edi                         
@@ -726,27 +750,23 @@ WndProc PROC hWin:DWORD, uMsg:DWORD, wParam:DWORD, lParam:DWORD
         cmp eax, ebx                         
         jge noBrickHit                       
 
-        ; Hit!
+        ; Brick is Hit!
         pop ecx                              
-        mov BYTE PTR [bricks + ecx], 0       
+        mov BYTE PTR [bricks + ecx], 0       ; [Lab 3: Memory Write]
         neg ballDY                           
         add score, 10                        
         dec bricksLeft                       
         invoke Beep, 261, 20
 
-        ; Figure out which row we just hit
         mov eax, ecx                         
         xor edx, edx                         
         mov ebx, BRICK_COLS                  
         div ebx                              
-        
-        ; Powerup check for Red brick
         cmp eax, 2                           
         jne noPowerup1                        
         mov solidBaseTimer, 300              
     noPowerup1:
 
-        ; NEXT ROUND CHECK
         cmp bricksLeft, 0                    
         jg doneBrickCheck                    
         
@@ -756,12 +776,7 @@ WndProc PROC hWin:DWORD, uMsg:DWORD, wParam:DWORD, lParam:DWORD
         mov ball2Active, 0
         mov powerActive, 0
         
-        mov ecx, 0
-    resetBricksRound:
-        mov BYTE PTR [bricks + ecx], 1
-        inc ecx
-        cmp ecx, TOTAL_BRICKS
-        jl resetBricksRound
+        CALL ResetBricks                     ; [Lab 6: Call Procedure to use Stack operations]
         jmp doneBrickCheck                   
 
     noBrickHit:
@@ -789,17 +804,34 @@ WndProc PROC hWin:DWORD, uMsg:DWORD, wParam:DWORD, lParam:DWORD
         
         neg ballDY                           
         
-        mov eax, ballX                       
-        add eax, BALL_SIZE / 2               
-        mov ecx, paddleX                     
-        add ecx, PADDLE_WIDTH / 3            
+        mov eax, BALL_SIZE
+        shr eax, 1                           ; [Lab 8: Bitwise] divide by 2
+        add eax, ballX                       ; eax = ball center X
+        
+        mov ecx, PADDLE_WIDTH
+        mov ebx, 3
+        xor edx, edx
+        push eax
+        mov eax, ecx
+        div ebx                              ; [Lab 9: Division] paddle_width / 3
+        mov ecx, eax
+        pop eax
+        
+        add ecx, paddleX                     ; Left third boundary
         cmp eax, ecx                         
         jg checkRightEdge                    
         mov ballDX, -BALL_SPEED              
         jmp donePaddleEdge
     checkRightEdge:
-        mov ecx, paddleX                     
-        add ecx, (PADDLE_WIDTH * 2) / 3      
+        mov ecx, PADDLE_WIDTH
+        mov ebx, 3
+        push eax
+        mov eax, ecx
+        div ebx                              
+        shl eax, 1                           ; [Lab 8: Bitwise Shift] multiply by 2 to get Right third boundary
+        mov ecx, eax
+        pop eax
+        add ecx, paddleX                     
         cmp eax, ecx                         
         jl donePaddleEdge                    
         mov ballDX, BALL_SPEED               
@@ -824,10 +856,13 @@ WndProc PROC hWin:DWORD, uMsg:DWORD, wParam:DWORD, lParam:DWORD
     stillAlive:
         mov ballActive, 0                    
         mov ball2Active, 0                   
-        mov eax, paddleX                     
-        add eax, PADDLE_WIDTH / 2            
+        
+        mov eax, PADDLE_WIDTH
+        shr eax, 1                           ; [Lab 8: Shift] center ball
+        add eax, paddleX                     
         sub eax, BALL_SIZE / 2               
         mov ballX, eax                       
+        
         mov eax, PADDLE_Y                    
         sub eax, BALL_SIZE                   
         mov ballY, eax                       
@@ -933,7 +968,6 @@ WndProc PROC hWin:DWORD, uMsg:DWORD, wParam:DWORD, lParam:DWORD
         cmp eax, ebx                         
         jge noBrickHit2                       
 
-        ; Hit!
         pop ecx                              
         mov BYTE PTR [bricks + ecx], 0       
         neg ball2DY                           
@@ -959,12 +993,7 @@ WndProc PROC hWin:DWORD, uMsg:DWORD, wParam:DWORD, lParam:DWORD
         mov ball2Active, 0
         mov powerActive, 0
         
-        mov ecx, 0
-    resetBricksRound2:
-        mov BYTE PTR [bricks + ecx], 1
-        inc ecx
-        cmp ecx, TOTAL_BRICKS
-        jl resetBricksRound2
+        CALL ResetBricks                     ; [Lab 6: Procedure usage]
         jmp doneBrickCheck2                   
 
     noBrickHit2:
@@ -1022,8 +1051,10 @@ WndProc PROC hWin:DWORD, uMsg:DWORD, wParam:DWORD, lParam:DWORD
 
         cmp ballActive, 0                    
         jne skipTrack                        
-        mov eax, paddleX                     
-        add eax, PADDLE_WIDTH / 2            
+        
+        mov eax, PADDLE_WIDTH
+        shr eax, 1                           ; [Lab 8: Shift right] Divide by 2
+        add eax, paddleX                     
         sub eax, BALL_SIZE / 2               
         mov ballX, eax                       
         mov eax, PADDLE_Y                    
@@ -1114,12 +1145,7 @@ WndProc PROC hWin:DWORD, uMsg:DWORD, wParam:DWORD, lParam:DWORD
             mov bricksLeft, TOTAL_BRICKS     
             mov paddleX, 280                 
 
-            mov ecx, 0                       
-        resetBricks:
-            mov BYTE PTR [bricks + ecx], 1   
-            inc ecx                          
-            cmp ecx, TOTAL_BRICKS            
-            jl resetBricks                   
+            CALL ResetBricks                 ; [Lab 6: Calling Stack Procedure]
 
             mov ballActive, 1                
             mov ball2Active, 0               
@@ -1128,8 +1154,10 @@ WndProc PROC hWin:DWORD, uMsg:DWORD, wParam:DWORD, lParam:DWORD
             mov eax, BALL_SPEED              
             neg eax                          
             mov ballDY, eax                  
-            mov eax, paddleX                 
-            add eax, PADDLE_WIDTH / 2        
+            
+            mov eax, PADDLE_WIDTH
+            shr eax, 1                       ; [Lab 8: Bitwise Shift]
+            add eax, paddleX                 
             sub eax, BALL_SIZE / 2           
             mov ballX, eax                   
             mov eax, PADDLE_Y                

@@ -1,78 +1,73 @@
 TITLE Brick Breaker Game (Brick_Breaker.asm)
-; A simple Brick Breaker game with Windows GUI
-; Uses Win32 API for window and GDI for drawing
+; A Brick Breaker game with Windows GUI
+; Internal logic aligned with x86 Assembly Course concepts (Loops, Stack, Mul/Div, Bitwise)
 
 .386                                         ; use 386 instruction set
 .model flat, stdcall                         ; flat memory model, stdcall convention
 option casemap:none                          ; case sensitive identifiers
 
 ; ============================================
-; Constants
+; Constants (Win32 API requirements)
 ; ============================================
-NULL                EQU 0                    ; null pointer value
-WS_OVERLAPPED       EQU 00000000h            ; overlapped window style
-WS_CAPTION          EQU 00C00000h            ; window has title bar
-WS_SYSMENU          EQU 00080000h            ; window has system menu
-WS_MINIMIZEBOX      EQU 00020000h            ; window has minimize button
-WS_VISIBLE          EQU 10000000h            ; window is initially visible
-CS_HREDRAW          EQU 0002h                ; redraw on horizontal resize
-CS_VREDRAW          EQU 0001h                ; redraw on vertical resize
-IDI_APPLICATION     EQU 32512                ; default application icon
-IDC_ARROW           EQU 32512                ; default arrow cursor
-SW_SHOW             EQU 5                    ; show window command
-CW_USEDEFAULT       EQU 80000000h            ; let windows choose position
-WM_CREATE           EQU 0001h                ; window just created
-WM_DESTROY          EQU 0002h                ; window being destroyed
-WM_PAINT            EQU 000Fh            ; window needs repainting
-WM_KEYDOWN          EQU 0100h            ; a key was pressed
-WM_TIMER            EQU 0113h            ; timer tick message
-TRUE                EQU 1                ; boolean true
-FALSE               EQU 0                ; boolean false
-TRANSPARENT_BK      EQU 1                ; transparent background mode
-SRCCOPY             EQU 00CC0020h        ; bitblt copy code
+NULL                EQU 0                    
+WS_OVERLAPPED       EQU 00000000h            
+WS_CAPTION          EQU 00C00000h            
+WS_SYSMENU          EQU 00080000h            
+WS_MINIMIZEBOX      EQU 00020000h            
+WS_VISIBLE          EQU 10000000h            
+CS_HREDRAW          EQU 0002h                
+CS_VREDRAW          EQU 0001h                
+IDI_APPLICATION     EQU 32512                
+IDC_ARROW           EQU 32512                
+SW_SHOW             EQU 5                    
+CW_USEDEFAULT       EQU 80000000h            
+WM_CREATE           EQU 0001h                
+WM_DESTROY          EQU 0002h                
+WM_PAINT            EQU 000Fh            
+WM_KEYDOWN          EQU 0100h            
+WM_TIMER            EQU 0113h            
+TRUE                EQU 1                
+FALSE               EQU 0                
+TRANSPARENT_BK      EQU 1                
+SRCCOPY             EQU 00CC0020h        
 
-; Virtual key codes for input
-VK_LEFT             EQU 25h              ; left arrow key code
-VK_RIGHT            EQU 27h              ; right arrow key code
-VK_SPACE            EQU 20h              ; space bar key code
-VK_ESCAPE           EQU 1Bh              ; escape key code
-VK_RETURN           EQU 0Dh              ; enter key code
-VK_I                EQU 49h              ; 'I' key
-VK_Q                EQU 51h              ; 'Q' key
-VK_R                EQU 52h              ; 'R' key
-WINDOW_WIDTH        EQU 640                  ; game window width in pixels
-WINDOW_HEIGHT       EQU 500                  ; game window height in pixels
+VK_LEFT             EQU 25h              
+VK_RIGHT            EQU 27h              
+VK_SPACE            EQU 20h              
+VK_ESCAPE           EQU 1Bh              
+VK_RETURN           EQU 0Dh              
+VK_I                EQU 49h              
+VK_Q                EQU 51h              
+VK_R                EQU 52h              
+WINDOW_WIDTH        EQU 640                  
+WINDOW_HEIGHT       EQU 500                  
 
-; Game area bounds
-BORDER_LEFT         EQU 30                   ; left wall x position
-BORDER_TOP          EQU 50                   ; top wall y position
-BORDER_RIGHT        EQU 610                  ; right wall x position
-BORDER_BOTTOM       EQU 450                  ; bottom open area y position
-BORDER_THICKNESS    EQU 4                    ; thickness of wall in pixels
+BORDER_LEFT         EQU 30                   
+BORDER_TOP          EQU 50                   
+BORDER_RIGHT        EQU 610                  
+BORDER_BOTTOM       EQU 450                  
+BORDER_THICKNESS    EQU 4                    
 
-; Brick layout constants
-BRICK_ROWS          EQU 3               ; 3 rows of bricks
-BRICK_COLS          EQU 8               ; 8 bricks per row
-TOTAL_BRICKS        EQU 24              ; 3 * 8 = 24 bricks total
-BRICK_WIDTH         EQU 62              ; width of each brick in pixels
-BRICK_HEIGHT        EQU 20              ; height of each brick in pixels
-BRICK_GAP           EQU 6               ; gap between bricks
-BRICK_START_X       EQU 42              ; x position of first brick
-BRICK_START_Y       EQU 70              ; y position of first row
+BRICK_ROWS          EQU 3               
+BRICK_COLS          EQU 8               
+TOTAL_BRICKS        EQU 24              
+BRICK_WIDTH         EQU 62              
+BRICK_HEIGHT        EQU 20              
+BRICK_GAP           EQU 6               
+BRICK_START_X       EQU 42              
+BRICK_START_Y       EQU 70              
 
-; Paddle constants
-PADDLE_WIDTH        EQU 80              ; paddle width in pixels
-PADDLE_HEIGHT       EQU 12              ; paddle height in pixels
-PADDLE_Y            EQU 425             ; paddle vertical position
-PADDLE_SPEED        EQU 15              ; pixels moved per keypress
+PADDLE_WIDTH        EQU 80              
+PADDLE_HEIGHT       EQU 12              
+PADDLE_Y            EQU 425             
+PADDLE_SPEED        EQU 15              
 
-; Ball constants
-BALL_SIZE           EQU 8               ; ball width and height in pixels
-BALL_SPEED          EQU 3               ; ball speed in pixels per tick
+BALL_SIZE           EQU 8               
+BALL_SPEED          EQU 3               
+POWERUP_SIZE        EQU 16              
 
-; Timer
-TIMER_ID            EQU 1               ; id for our game timer
-TIMER_INTERVAL      EQU 8               ; ~125fps refresh rate (ms)
+TIMER_ID            EQU 1               
+TIMER_INTERVAL      EQU 8               
 
 ; ============================================
 ; Structures
@@ -125,12 +120,10 @@ PAINTSTRUCT ENDS
 ; ============================================
 ; Function Prototypes
 ; ============================================
-; kernel32
 GetModuleHandleA PROTO :DWORD
 ExitProcess PROTO :DWORD
 Beep PROTO :DWORD,:DWORD
-
-; user32
+GetTickCount PROTO                           
 RegisterClassExA PROTO :DWORD
 CreateWindowExA PROTO :DWORD,:DWORD,:DWORD,:DWORD,:DWORD,:DWORD,:DWORD,:DWORD,:DWORD,:DWORD,:DWORD,:DWORD
 ShowWindow PROTO :DWORD,:DWORD
@@ -145,21 +138,16 @@ EndPaint PROTO :DWORD,:DWORD
 LoadIconA PROTO :DWORD,:DWORD
 LoadCursorA PROTO :DWORD,:DWORD
 GetClientRect PROTO :DWORD,:DWORD
-FillRect PROTO :DWORD,:DWORD,:DWORD      ; fill rectangle with brush
-SetTimer PROTO :DWORD,:DWORD,:DWORD,:DWORD ; start a timer
-KillTimer PROTO :DWORD,:DWORD             ; stop a timer
-InvalidateRect PROTO :DWORD,:DWORD,:DWORD ; mark window for repaint
-MessageBoxA PROTO :DWORD,:DWORD,:DWORD,:DWORD ; show message box
-wsprintfA PROTO C :DWORD,:DWORD,:VARARG   ; format string with numbers
-GetAsyncKeyState PROTO :DWORD              ; check key state asynchronously
-
-; gdi32
+FillRect PROTO :DWORD,:DWORD,:DWORD      
+SetTimer PROTO :DWORD,:DWORD,:DWORD,:DWORD 
+KillTimer PROTO :DWORD,:DWORD             
+InvalidateRect PROTO :DWORD,:DWORD,:DWORD 
+wsprintfA PROTO C :DWORD,:DWORD,:VARARG   
 CreateSolidBrush PROTO :DWORD
 DeleteObject PROTO :DWORD
 SetBkMode PROTO :DWORD,:DWORD
 SetTextColor PROTO :DWORD,:DWORD
 TextOutA PROTO :DWORD,:DWORD,:DWORD,:DWORD,:DWORD
-Rectangle PROTO :DWORD,:DWORD,:DWORD,:DWORD,:DWORD
 SelectObject PROTO :DWORD,:DWORD
 GetStockObject PROTO :DWORD
 CreateCompatibleDC PROTO :DWORD
@@ -171,63 +159,66 @@ DeleteDC PROTO :DWORD
 ; Data
 ; ============================================
 .data
-className       BYTE "BrickBreakerWnd", 0  ; window class name for registration
-windowTitle     BYTE "Brick Breaker", 0    ; text shown in title bar
-titleText       BYTE "BRICK BREAKER", 0    ; text drawn on the window
-hInstance       DWORD 0                     ; handle to this program instance
-hwndMain        DWORD 0                     ; handle to our main window
+className       BYTE "BrickBreakerWnd", 0  
+windowTitle     BYTE "Brick Breaker", 0    
+titleText       BYTE "BRICK BREAKER", 0    
+hInstance       DWORD 0                     
+hwndMain        DWORD 0                     
 
-; Brick status array: 1 = alive, 0 = destroyed
-; 24 bricks total (3 rows x 8 columns)
-bricks          BYTE 1,1,1,1,1,1,1,1        ; row 0 (blue bricks)
-                BYTE 1,1,1,1,1,1,1,1        ; row 1 (green bricks)
-                BYTE 1,1,1,1,1,1,1,1        ; row 2 (red bricks)
+bricks          BYTE 1,1,1,1,1,1,1,1        
+                BYTE 1,1,1,1,1,1,1,1        
+                BYTE 1,1,1,1,1,1,1,1        
 
-; Colors for each row (BGR format for Win32)
-rowColors       DWORD 00FF0000h             ; row 0 = blue
-                DWORD 0000CC00h             ; row 1 = green
-                DWORD 000000FFh             ; row 2 = red
+rowColors       DWORD 00FF0000h             ; blue
+                DWORD 0000CC00h             ; green
+                DWORD 000000FFh             ; red
 
-; Paddle state
-paddleX         DWORD 280                   ; paddle x position (starts centered)
+paddleX         DWORD 280                   
 
-; Ball state
-ballX           DWORD 316                   ; ball x position (centered on paddle)
-ballY           DWORD 413                   ; ball y position (on top of paddle)
-ballDX          SDWORD 3                    ; ball x velocity (positive = right)
-ballDY          SDWORD -3                   ; ball y velocity (negative = up)
-ballActive      DWORD 0                     ; 0 = sitting on paddle, 1 = moving
+ballX           DWORD 316                   
+ballY           DWORD 413                   
+ballDX          SDWORD 3                    
+ballDY          SDWORD -3                   
+ballActive      DWORD 0                     
 
-; Game state
-score           DWORD 0                     ; player score
-lives           DWORD 3                     ; remaining lives
-bricksLeft      DWORD 24                    ; how many bricks still alive
-gameState       DWORD 3                     ; 0=playing, 1=won, 2=lost, 3=title, 4=instr
+ball2X          DWORD 0                     
+ball2Y          DWORD 0                     
+ball2DX         SDWORD 0                    
+ball2DY         SDWORD 0                    
+ball2Active     DWORD 0                     
 
-; Time tracking
-timerTicks      DWORD 0                     ; counts ticks to calculate seconds (60 ticks ~ 1s)
-timeSeconds     DWORD 0                     ; elapsed game time in seconds
+powerX          DWORD 0                     
+powerY          DWORD 0                     
+powerActive     DWORD 0                     
+powerSpeed      DWORD 4                     
 
-; Powerups
-solidBaseTimer  DWORD 0                     ; timer for solid base powerup (in ticks)
+score           DWORD 0                     
+lives           DWORD 3                     
+bricksLeft      DWORD 24                    
+gameState       DWORD 3                     
+timerTicks      DWORD 0                     
+timeSeconds     DWORD 0                     
+solidBaseTimer  DWORD 0                     
+currentRound    DWORD 1                     
 
-; HUD display strings
-scoreLabel      BYTE "Score: ", 0           ; label for score display
-livesLabel      BYTE "Lives: ", 0           ; label for lives display
-timeLabel       BYTE "Time: ", 0            ; label for time display
-scoreBuf        BYTE 32 DUP(0)              ; buffer for formatted score text
-livesBuf        BYTE 32 DUP(0)              ; buffer for formatted lives text
-timeBuf         BYTE 32 DUP(0)              ; buffer for formatted time text
-fmtStr          BYTE "%d", 0                ; format string for numbers
-winMsg          BYTE "YOU WIN!", 0          ; win message text
-loseMsg         BYTE "GAME OVER", 0         ; lose message text
-restartMsg      BYTE "Press SPACE to restart", 0 ; restart hint
-startMsg        BYTE "Press SPACE to launch ball", 0 ; start hint
-hint1Msg        BYTE "Left/Right Arrows to move", 0  ; control hint
-hint2Msg        BYTE "Red bricks give 5s solid base!", 0 ; powerup hint
-hint3Msg        BYTE "Clear under 2m for +50pt bonus", 0 ; bonus hint
+scoreLabel      BYTE "Score: ", 0           
+livesLabel      BYTE "Lives: ", 0           
+timeLabel       BYTE "Time: ", 0            
+roundLabel      BYTE "Round: ", 0           
 
-; Menu Strings
+scoreBuf        BYTE 32 DUP(0)              
+livesBuf        BYTE 32 DUP(0)              
+timeBuf         BYTE 32 DUP(0)              
+roundBuf        BYTE 32 DUP(0)              
+fmtStr          BYTE "%d", 0                
+
+winMsg          BYTE "YOU WIN!", 0          
+loseMsg         BYTE "GAME OVER", 0         
+restartMsg      BYTE "Press SPACE to restart", 0 
+startMsg        BYTE "Press SPACE to launch ball", 0 
+hint1Msg        BYTE "Left/Right Arrows to move", 0  
+hint2Msg        BYTE "Red bricks give 5s solid base!", 0 
+hint3Msg        BYTE "Survive 5s for random Multiball drops!", 0  
 titleWelcomeMsg BYTE "WELCOME TO BRICK BREAKER", 0
 titlePlayMsg    BYTE "PRESS ENTER TO PLAY GAME", 0
 titleInstrMsg   BYTE "PRESS I FOR INSTRUCTION BOX", 0
@@ -239,25 +230,45 @@ endRestartMsg   BYTE "PRESS R TO RESTART YOUR GAME", 0
 endQuitMsg      BYTE "PRESS Q TO QUIT GAME", 0
 
 ; ============================================
-; Code
+; Code Segment
 ; ============================================
 .code
 
-; --------------------------------------------
-; Window Procedure
-; --------------------------------------------
+; ---------------------------------------------------------
+; [Lab 6: Stacks and Procedures] 
+; Procedure to reset all bricks back to active state (1)
+; Uses PUSHAD/POPAD to preserve register states
+; ---------------------------------------------------------
+ResetBricks PROC
+    PUSHAD                      ; Push all general purpose registers to stack
+
+    mov ecx, TOTAL_BRICKS       ; [Lab 4: Loops] Set loop counter
+    mov esi, OFFSET bricks      ; [Lab 4: Arrays] Register indirect addressing base
+
+L_ResetLoop:
+    mov BYTE PTR [esi], 1       ; [Lab 3: Memory Access] Write 1 to memory
+    inc esi                     ; Point to next element in array
+    LOOP L_ResetLoop            ; Decrement ECX and jump if not zero
+
+    POPAD                       ; Pop all registers from stack
+    RET                         ; Return from procedure
+ResetBricks ENDP
+
+; ---------------------------------------------------------
+; Main Window Procedure
+; ---------------------------------------------------------
 WndProc PROC hWin:DWORD, uMsg:DWORD, wParam:DWORD, lParam:DWORD
-    LOCAL ps:PAINTSTRUCT                    ; paint struct for BeginPaint
-    LOCAL hdc:DWORD                         ; memory device context handle
-    LOCAL screenDC:DWORD                    ; actual screen device context
-    LOCAL hBitmap:DWORD                     ; memory bitmap
-    LOCAL hOldBitmap:DWORD                  ; old bitmap
-    LOCAL rc:RECT                           ; temp rectangle for drawing
-    LOCAL hBrush:DWORD                      ; temp brush handle
-    LOCAL brickRow:DWORD                    ; current brick row counter
-    LOCAL brickCol:DWORD                    ; current brick column counter
-    LOCAL brickX:DWORD                      ; current brick x position
-    LOCAL brickY:DWORD                      ; current brick y position
+    LOCAL ps:PAINTSTRUCT                    
+    LOCAL hdc:DWORD                         
+    LOCAL screenDC:DWORD                    
+    LOCAL hBitmap:DWORD                     
+    LOCAL hOldBitmap:DWORD                  
+    LOCAL rc:RECT                           
+    LOCAL hBrush:DWORD                      
+    LOCAL brickRow:DWORD                    
+    LOCAL brickCol:DWORD                    
+    LOCAL brickX:DWORD                      
+    LOCAL brickY:DWORD                      
 
     mov eax, uMsg
 
@@ -265,215 +276,224 @@ WndProc PROC hWin:DWORD, uMsg:DWORD, wParam:DWORD, lParam:DWORD
         invoke BeginPaint, hWin, ADDR ps
         mov screenDC, eax
 
-        ; --- double buffering setup ---
         invoke CreateCompatibleDC, screenDC
-        mov hdc, eax                               ; use hdc as the memory DC
+        mov hdc, eax                               
         invoke GetClientRect, hWin, ADDR rc
         invoke CreateCompatibleBitmap, screenDC, rc.right, rc.bottom
         mov hBitmap, eax
         invoke SelectObject, hdc, hBitmap
         mov hOldBitmap, eax
 
-        ; fill background black
-        invoke GetStockObject, 4                   ; BLACK_BRUSH
+        invoke GetStockObject, 4                   
         invoke FillRect, hdc, ADDR rc, eax
 
-        ; --- branch based on game state ---
-        cmp gameState, 3                     ; title screen?
+        ; [Lab 7: Conditional Structure]
+        cmp gameState, 3                     
         je drawTitleScreen
-        cmp gameState, 4                     ; instruction screen?
+        cmp gameState, 4                     
         je drawInstructionScreen
-        cmp gameState, 1                     ; won?
+        cmp gameState, 1                     
         je drawEndScreen
-        cmp gameState, 2                     ; lost?
+        cmp gameState, 2                     
         je drawEndScreen
 
-        ; ============================================
-        ; draw game (playing state)
-        ; ============================================
-
-        ; --- draw game area border (gray) ---
         invoke GetClientRect, hWin, ADDR rc
         invoke CreateSolidBrush, 00400000h
         mov hBrush, eax
         invoke FillRect, hdc, ADDR rc, hBrush
         invoke DeleteObject, hBrush
 
-        ; draw game border (gray)
         invoke CreateSolidBrush, 00808080h
         mov hBrush, eax
         invoke SelectObject, hdc, hBrush
-        ; top wall
         mov rc.left, BORDER_LEFT
         mov rc.top, BORDER_TOP
         mov rc.right, BORDER_RIGHT
         mov rc.bottom, BORDER_TOP + BORDER_THICKNESS
         invoke FillRect, hdc, ADDR rc, hBrush
-        ; left wall
         mov rc.left, BORDER_LEFT
         mov rc.top, BORDER_TOP
         mov rc.right, BORDER_LEFT + BORDER_THICKNESS
         mov rc.bottom, BORDER_BOTTOM
         invoke FillRect, hdc, ADDR rc, hBrush
-        ; right wall
         mov rc.left, BORDER_RIGHT - BORDER_THICKNESS
         mov rc.top, BORDER_TOP
         mov rc.right, BORDER_RIGHT
         mov rc.bottom, BORDER_BOTTOM
         invoke FillRect, hdc, ADDR rc, hBrush
-        invoke DeleteObject, hBrush         ; free the gray brush
+        invoke DeleteObject, hBrush         
 
-        ; --- draw bottom border if solid base active ---
-        cmp solidBaseTimer, 0                ; is solid base active?
-        jle skipBottomBorder                 ; if not, skip
+        cmp solidBaseTimer, 0                
+        jle skipBottomBorder                 
         
-        invoke CreateSolidBrush, 000000FFh   ; red brush for solid base
-        mov hBrush, eax                      ; save brush handle
-        
-        mov rc.left, BORDER_LEFT             ; left edge
-        mov rc.top, BORDER_BOTTOM            ; bottom edge
-        mov rc.right, BORDER_RIGHT           ; right edge
-        mov eax, BORDER_BOTTOM               ; get bottom y
-        add eax, BORDER_THICKNESS            ; add thickness
-        mov rc.bottom, eax                   ; set bottom boundary
-        
-        invoke FillRect, hdc, ADDR rc, hBrush ; draw bottom border
-        invoke DeleteObject, hBrush          ; free brush
+        invoke CreateSolidBrush, 000000FFh   
+        mov hBrush, eax                      
+        mov rc.left, BORDER_LEFT             
+        mov rc.top, BORDER_BOTTOM            
+        mov rc.right, BORDER_RIGHT           
+        mov eax, BORDER_BOTTOM               
+        add eax, BORDER_THICKNESS            
+        mov rc.bottom, eax                   
+        invoke FillRect, hdc, ADDR rc, hBrush 
+        invoke DeleteObject, hBrush          
     skipBottomBorder:
 
-        ; --- draw bricks ---
-        mov brickRow, 0                      ; start from row 0
+        mov brickRow, 0                      
     drawRowLoop:
-        cmp brickRow, BRICK_ROWS             ; check if we drew all rows
-        jge doneDrawBricks                   ; if so, skip to end
+        cmp brickRow, BRICK_ROWS             
+        jge doneDrawBricks                   
 
-        ; pick color for this row
-        mov eax, brickRow                    ; get current row index
-        shl eax, 2                           ; multiply by 4 (DWORD size)
-        mov eax, [rowColors + eax]           ; load row color (BGR)
-        invoke CreateSolidBrush, eax         ; create brush with that color
-        mov hBrush, eax                      ; save brush handle
+        mov eax, brickRow                    
+        shl eax, 2                           ; [Lab 8: Bitwise Shift] Multiply by 4
+        mov eax, [rowColors + eax]           
+        invoke CreateSolidBrush, eax         
+        mov hBrush, eax                      
 
-        ; calculate y position for this row
-        mov eax, brickRow                    ; row index
-        mov ecx, BRICK_HEIGHT + BRICK_GAP    ; height + gap per row
-        imul eax, ecx                        ; row * (height + gap)
-        add eax, BRICK_START_Y               ; add starting y offset
-        mov brickY, eax                      ; store y position
+        mov eax, brickRow                    
+        mov ecx, BRICK_HEIGHT + BRICK_GAP    
+        imul eax, ecx                        
+        add eax, BRICK_START_Y               
+        mov brickY, eax                      
 
-        mov brickCol, 0                      ; start from column 0
+        mov brickCol, 0                      
     drawColLoop:
-        cmp brickCol, BRICK_COLS             ; check if we drew all columns
-        jge doneRow                          ; if so, move to next row
+        cmp brickCol, BRICK_COLS             
+        jge doneRow                          
 
-        ; check if this brick is still alive
-        mov eax, brickRow                    ; current row
-        imul eax, BRICK_COLS                 ; row * 8 = offset into array
-        add eax, brickCol                    ; add column = brick index
-        movzx eax, BYTE PTR [bricks + eax]   ; load alive flag (0 or 1)
-        cmp eax, 0                           ; is brick destroyed?
-        je skipBrick                         ; if dead, skip drawing it
+        mov eax, brickRow                    
+        imul eax, BRICK_COLS                 
+        add eax, brickCol                    
+        movzx eax, BYTE PTR [bricks + eax]   
+        cmp eax, 0                           
+        je skipBrick                         
 
-        ; calculate x position for this column
-        mov eax, brickCol                    ; column index
-        mov ecx, BRICK_WIDTH + BRICK_GAP     ; width + gap per column
-        imul eax, ecx                        ; col * (width + gap)
-        add eax, BRICK_START_X               ; add starting x offset
-        mov brickX, eax                      ; store x position
+        mov eax, brickCol                    
+        mov ecx, BRICK_WIDTH + BRICK_GAP     
+        imul eax, ecx                        
+        add eax, BRICK_START_X               
+        mov brickX, eax                      
 
-        ; set up the rectangle for this brick
-        mov eax, brickX                      ; left edge
+        mov eax, brickX                      
         mov rc.left, eax
-        mov eax, brickY                      ; top edge
+        mov eax, brickY                      
         mov rc.top, eax
-        mov eax, brickX                      ; right = left + width
+        mov eax, brickX                      
         add eax, BRICK_WIDTH
         mov rc.right, eax
-        mov eax, brickY                      ; bottom = top + height
+        mov eax, brickY                      
         add eax, BRICK_HEIGHT
         mov rc.bottom, eax
 
-        invoke FillRect, hdc, ADDR rc, hBrush ; fill the brick rectangle
+        invoke FillRect, hdc, ADDR rc, hBrush 
 
     skipBrick:
-        inc brickCol                         ; move to next column
-        jmp drawColLoop                      ; repeat for all columns
-
+        inc brickCol                         
+        jmp drawColLoop                      
     doneRow:
-        invoke DeleteObject, hBrush          ; free this row's brush
-        inc brickRow                         ; move to next row
-        jmp drawRowLoop                      ; repeat for all rows
-
+        invoke DeleteObject, hBrush          
+        inc brickRow                         
+        jmp drawRowLoop                      
     doneDrawBricks:
 
-        ; --- draw paddle ---
-        invoke CreateSolidBrush, 00FFFF00h   ; cyan color for paddle (BGR)
-        mov hBrush, eax                      ; save the brush handle
-        mov eax, paddleX                     ; get paddle x position
-        mov rc.left, eax                     ; set left edge of paddle
-        mov rc.top, PADDLE_Y                 ; set top edge of paddle
-        add eax, PADDLE_WIDTH                ; calculate right edge
-        mov rc.right, eax                    ; set right edge
-        mov eax, PADDLE_Y                    ; get paddle y again
-        add eax, PADDLE_HEIGHT               ; calculate bottom edge
-        mov rc.bottom, eax                   ; set bottom edge
-        invoke FillRect, hdc, ADDR rc, hBrush ; draw the paddle
-        invoke DeleteObject, hBrush          ; free the brush
+        invoke CreateSolidBrush, 00FFFF00h   
+        mov hBrush, eax                      
+        mov eax, paddleX                     
+        mov rc.left, eax                     
+        mov rc.top, PADDLE_Y                 
+        add eax, PADDLE_WIDTH                
+        mov rc.right, eax                    
+        mov eax, PADDLE_Y                    
+        add eax, PADDLE_HEIGHT               
+        mov rc.bottom, eax                   
+        invoke FillRect, hdc, ADDR rc, hBrush 
+        invoke DeleteObject, hBrush          
 
-        ; --- draw ball ---
-        invoke CreateSolidBrush, 00FFFFFFh   ; white color for ball (BGR)
-        mov hBrush, eax                      ; save brush handle
-        mov eax, ballX                       ; get ball x position
-        mov rc.left, eax                     ; set left edge
-        mov eax, ballY                       ; get ball y position
-        mov rc.top, eax                      ; set top edge
-        mov eax, ballX                       ; calculate right edge
-        add eax, BALL_SIZE                   ; left + ball size
-        mov rc.right, eax                    ; set right edge
-        mov eax, ballY                       ; calculate bottom edge
-        add eax, BALL_SIZE                   ; top + ball size
-        mov rc.bottom, eax                   ; set bottom edge
-        invoke FillRect, hdc, ADDR rc, hBrush ; draw ball
-        invoke DeleteObject, hBrush          ; free brush
+        invoke CreateSolidBrush, 00FFFFFFh   
+        mov hBrush, eax                      
+        mov eax, ballX                       
+        mov rc.left, eax                     
+        mov eax, ballY                       
+        mov rc.top, eax                      
+        mov eax, ballX                       
+        add eax, BALL_SIZE                   
+        mov rc.right, eax                    
+        mov eax, ballY                       
+        add eax, BALL_SIZE                   
+        mov rc.bottom, eax                   
+        invoke FillRect, hdc, ADDR rc, hBrush 
+        invoke DeleteObject, hBrush          
 
-        ; --- HUD: score, time and lives ---
-        invoke SetBkMode, hdc, TRANSPARENT_BK ; transparent text background
-        invoke SetTextColor, hdc, 0000FFFFh   ; yellow text color
-        invoke TextOutA, hdc, 250, 15, ADDR titleText, 13 ; draw title
+        cmp ball2Active, 1
+        jne skipDrawBall2
+        invoke CreateSolidBrush, 0000FFFFh   
+        mov hBrush, eax
+        mov eax, ball2X
+        mov rc.left, eax
+        mov eax, ball2Y
+        mov rc.top, eax
+        mov eax, ball2X
+        add eax, BALL_SIZE
+        mov rc.right, eax
+        mov eax, ball2Y
+        add eax, BALL_SIZE
+        mov rc.bottom, eax
+        invoke FillRect, hdc, ADDR rc, hBrush
+        invoke DeleteObject, hBrush
+    skipDrawBall2:
 
-        ; draw score label and value
-        invoke SetTextColor, hdc, 00FFFFFFh   ; white color for HUD
-        invoke TextOutA, hdc, 30, 15, ADDR scoreLabel, 7 ; "Score: "
-        invoke wsprintfA, ADDR scoreBuf, ADDR fmtStr, score ; convert score to text
-        invoke TextOutA, hdc, 86, 15, ADDR scoreBuf, eax ; draw score number
+        cmp powerActive, 1
+        jne skipDrawPower
+        invoke CreateSolidBrush, 00FF00FFh   
+        mov hBrush, eax
+        mov eax, powerX
+        mov rc.left, eax
+        mov eax, powerY
+        mov rc.top, eax
+        mov eax, powerX
+        add eax, POWERUP_SIZE                
+        mov rc.right, eax
+        mov eax, powerY
+        add eax, POWERUP_SIZE                   
+        mov rc.bottom, eax
+        invoke FillRect, hdc, ADDR rc, hBrush
+        invoke DeleteObject, hBrush
+    skipDrawPower:
 
-        ; draw time label and value
-        invoke TextOutA, hdc, 430, 15, ADDR timeLabel, 6 ; "Time: "
-        invoke wsprintfA, ADDR timeBuf, ADDR fmtStr, timeSeconds ; convert time to text
-        invoke TextOutA, hdc, 480, 15, ADDR timeBuf, eax ; draw time number
-
-        ; draw lives label and value
-        invoke TextOutA, hdc, 540, 15, ADDR livesLabel, 7 ; "Lives: "
-        invoke wsprintfA, ADDR livesBuf, ADDR fmtStr, lives ; convert lives to text
-        invoke TextOutA, hdc, 596, 15, ADDR livesBuf, eax ; draw lives number
-
-        ; show start hints if ball is on paddle and game just started
-        cmp ballActive, 0                    ; ball on paddle?
-        jne skipStartMsg                     ; if launched, skip
+        invoke SetBkMode, hdc, TRANSPARENT_BK 
         
-        invoke SetTextColor, hdc, 00AAAAAAh  ; light gray text
-        invoke TextOutA, hdc, 225, 300, ADDR startMsg, 26 ; show start hint
-    skipStartMsg:
-        jmp donePaint                        ; done drawing game
+        invoke SetTextColor, hdc, 00FFFFFFh   
+        invoke TextOutA, hdc, 30, 15, ADDR scoreLabel, 7 
+        invoke wsprintfA, ADDR scoreBuf, ADDR fmtStr, score 
+        invoke TextOutA, hdc, 80, 15, ADDR scoreBuf, eax 
 
-        ; ============================================
-        ; dedicated menu screens
-        ; ============================================
+        invoke TextOutA, hdc, 140, 15, ADDR roundLabel, 7 
+        invoke wsprintfA, ADDR roundBuf, ADDR fmtStr, currentRound 
+        invoke TextOutA, hdc, 196, 15, ADDR roundBuf, eax 
+
+        invoke SetTextColor, hdc, 0000FFFFh   
+        invoke TextOutA, hdc, 260, 15, ADDR titleText, 13 
+
+        invoke SetTextColor, hdc, 00FFFFFFh   
+        invoke TextOutA, hdc, 450, 15, ADDR timeLabel, 6 
+        invoke wsprintfA, ADDR timeBuf, ADDR fmtStr, timeSeconds 
+        invoke TextOutA, hdc, 496, 15, ADDR timeBuf, eax 
+
+        invoke TextOutA, hdc, 540, 15, ADDR livesLabel, 7 
+        invoke wsprintfA, ADDR livesBuf, ADDR fmtStr, lives 
+        invoke TextOutA, hdc, 596, 15, ADDR livesBuf, eax 
+
+        cmp ballActive, 0                    
+        jne skipStartMsg                     
+        invoke SetTextColor, hdc, 00AAAAAAh  
+        invoke TextOutA, hdc, 225, 300, ADDR startMsg, 26 
+    skipStartMsg:
+        jmp donePaint                        
+
     drawTitleScreen:
         invoke SetBkMode, hdc, TRANSPARENT_BK
-        invoke SetTextColor, hdc, 0000FFFFh  ; yellow title
+        invoke SetTextColor, hdc, 0000FFFFh  
         invoke TextOutA, hdc, 220, 150, ADDR titleWelcomeMsg, 24
-        invoke SetTextColor, hdc, 00FFFFFFh  ; white text
+        invoke SetTextColor, hdc, 00FFFFFFh  
         invoke TextOutA, hdc, 220, 220, ADDR titlePlayMsg, 24
         invoke TextOutA, hdc, 220, 270, ADDR titleInstrMsg, 27
         invoke TextOutA, hdc, 220, 320, ADDR titleExitMsg, 22
@@ -486,13 +506,13 @@ WndProc PROC hWin:DWORD, uMsg:DWORD, wParam:DWORD, lParam:DWORD
         invoke SetTextColor, hdc, 00FFFFFFh
         invoke TextOutA, hdc, 180, 180, ADDR hint1Msg, 25
         invoke TextOutA, hdc, 180, 220, ADDR hint2Msg, 30
-        invoke TextOutA, hdc, 180, 260, ADDR hint3Msg, 30
+        invoke TextOutA, hdc, 180, 260, ADDR hint3Msg, 38
         invoke TextOutA, hdc, 220, 350, ADDR titlePlayMsg, 24
         jmp donePaint
 
     drawEndScreen:
         invoke SetBkMode, hdc, TRANSPARENT_BK
-        invoke SetTextColor, hdc, 0000FFFFh   ; yellow
+        invoke SetTextColor, hdc, 0000FFFFh   
         cmp gameState, 1
         jne lostState
         invoke TextOutA, hdc, 280, 100, ADDR winMsg, 8
@@ -500,7 +520,7 @@ WndProc PROC hWin:DWORD, uMsg:DWORD, wParam:DWORD, lParam:DWORD
     lostState:
         invoke TextOutA, hdc, 280, 100, ADDR loseMsg, 9
     drawStats:
-        invoke SetTextColor, hdc, 00FFFFFFh   ; white
+        invoke SetTextColor, hdc, 00FFFFFFh   
         invoke TextOutA, hdc, 200, 180, ADDR endScoresMsg, 18
         invoke wsprintfA, ADDR scoreBuf, ADDR fmtStr, score
         invoke TextOutA, hdc, 380, 180, ADDR scoreBuf, eax
@@ -512,399 +532,650 @@ WndProc PROC hWin:DWORD, uMsg:DWORD, wParam:DWORD, lParam:DWORD
         jmp donePaint
 
     donePaint:
-        ; copy memory DC to screen DC
         invoke BitBlt, screenDC, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, hdc, 0, 0, SRCCOPY
-        
-        ; cleanup double buffering
         invoke SelectObject, hdc, hOldBitmap
         invoke DeleteObject, hBitmap
         invoke DeleteDC, hdc
-
-        invoke EndPaint, hWin, ADDR ps       ; finish painting
-        xor eax, eax                         ; return 0 (message handled)
+        invoke EndPaint, hWin, ADDR ps       
+        xor eax, eax                         
         ret
 
     .ELSEIF eax == WM_CREATE
-        ; start the game timer when window is created
-        invoke SetTimer, hWin, TIMER_ID, TIMER_INTERVAL, NULL ; create timer
-        xor eax, eax                         ; return 0
+        invoke SetTimer, hWin, TIMER_ID, TIMER_INTERVAL, NULL 
+        xor eax, eax                         
         ret
 
     .ELSEIF eax == WM_TIMER
-        ; --- update time ---
-        cmp gameState, 0                     ; is game still in play?
-        jne skipTimeUpdate                   ; if won or lost, dont update time
-        cmp ballActive, 1                    ; is ball active (game running)?
-        jne skipTimeUpdate                   ; if not, dont update time
-        inc timerTicks                       ; increment tick counter
-        cmp timerTicks, 125                  ; reached 125 ticks? (approx 1 sec at 8ms interval)
-        jl skipTimeUpdate                    ; if not, skip
-        mov timerTicks, 0                    ; reset tick counter
-        inc timeSeconds                      ; increment seconds
+        cmp gameState, 0                     
+        jne skipTimeUpdate                   
+        cmp ballActive, 1                    
+        jne skipTimeUpdate                   
+        inc timerTicks                       
+        cmp timerTicks, 125                  
+        jl skipTimeUpdate                    
+        mov timerTicks, 0                    
+        inc timeSeconds                      
     skipTimeUpdate:
 
-        ; --- update powerup timers ---
-        cmp solidBaseTimer, 0                ; is solid base active?
-        jle skipSolidUpdate                  ; if not, skip
-        dec solidBaseTimer                   ; decrement timer
+        cmp solidBaseTimer, 0                
+        jle skipSolidUpdate                  
+        dec solidBaseTimer                   
     skipSolidUpdate:
 
-        ; --- move the ball if its active ---
-        cmp gameState, 0                     ; is game still in play?
-        jne skipBallMove                     ; if won or lost, dont move ball
-        cmp ballActive, 0                    ; is ball launched?
-        je skipBallMove                      ; if not, skip movement
+        ; ==================================
+        ; POWERUP GENERATOR
+        ; ==================================
+        cmp gameState, 0                     
+        jne skipPowerSpawnCheck              
+        cmp ballActive, 1                    
+        jne skipPowerSpawnCheck              
+        
+        cmp timeSeconds, 5                   
+        jl skipPowerSpawnCheck               
+        cmp powerActive, 1                   
+        je skipPowerSpawnCheck               
+        
+        ; [Lab 8: Bitwise AND] Masking value for randomness
+        invoke GetTickCount
+        mov edx, eax
+        and edx, 255                         ; Bitwise AND to keep lower 8 bits (0-255)
+        cmp edx, 50                          
+        jne skipPowerSpawnCheck              
+        
+        mov powerActive, 1
+        mov powerY, BORDER_TOP
+        
+        shr eax, 8                           ; [Lab 8: Bitwise Shift] Divide by 256
+        xor edx, edx
+        mov ebx, 480                         
+        div ebx                              ; [Lab 9: Division] Generate X coordinate
+        add edx, BORDER_LEFT + 20            
+        mov powerX, edx
+        
+    skipPowerSpawnCheck:
 
-        ; update ball x position
-        mov eax, ballX                       ; get current x
-        add eax, ballDX                      ; add x velocity
-        mov ballX, eax                       ; save new x
+        ; ==================================
+        ; POWERUP MOVEMENT & COLLISION
+        ; ==================================
+        cmp powerActive, 1
+        jne skipPowerUpdate
+        mov eax, powerY
+        add eax, powerSpeed
+        mov powerY, eax
 
-        ; update ball y position
-        mov eax, ballY                       ; get current y
-        add eax, ballDY                      ; add y velocity
-        mov ballY, eax                       ; save new y
+        ; [Lab 7: Conditional Structures]
+        mov eax, powerY
+        add eax, POWERUP_SIZE 
+        cmp eax, PADDLE_Y
+        jl checkPowerMissed                  ; Jump if Less (JL)
+        cmp eax, PADDLE_Y + PADDLE_HEIGHT
+        jg checkPowerMissed                  ; Jump if Greater (JG)
+        
+        mov eax, powerX
+        add eax, POWERUP_SIZE
+        cmp eax, paddleX
+        jl checkPowerMissed
+        mov eax, powerX
+        mov ebx, paddleX
+        add ebx, PADDLE_WIDTH
+        cmp eax, ebx
+        jg checkPowerMissed
 
-        ; bounce off left wall
-        mov eax, ballX                       ; check x position
-        cmp eax, BORDER_LEFT + BORDER_THICKNESS ; past left wall?
-        jg noLeftBounce                      ; if not, skip
-        neg ballDX                           ; reverse x direction
-        mov ballX, BORDER_LEFT + BORDER_THICKNESS ; push back inside
+        ; Caught powerup! Spawn Ball 2
+        mov powerActive, 0
+        mov ball2Active, 1
+        
+        mov eax, PADDLE_WIDTH
+        shr eax, 1                           ; [Lab 8: Bitwise Shift] Divide width by 2 to find center
+        add eax, paddleX
+        mov ball2X, eax
+        
+        mov eax, PADDLE_Y
+        sub eax, BALL_SIZE
+        mov ball2Y, eax
+        mov eax, ballDX
+        neg eax
+        mov ball2DX, eax
+        mov ball2DY, -BALL_SPEED
+        jmp skipPowerUpdate
+
+    checkPowerMissed:
+        mov eax, powerY
+        cmp eax, BORDER_BOTTOM
+        jl skipPowerUpdate
+        mov powerActive, 0
+    skipPowerUpdate:
+
+        ; ==================================
+        ; BALL 1 MOVEMENT & COLLISION
+        ; ==================================
+        cmp gameState, 0                     
+        jne skipBallMove                     
+        cmp ballActive, 0                    
+        je skipBallMove                      
+
+        mov eax, ballX                       
+        add eax, ballDX                      
+        mov ballX, eax                       
+        mov eax, ballY                       
+        add eax, ballDY                      
+        mov ballY, eax                       
+
+        mov eax, ballX                       
+        cmp eax, BORDER_LEFT + BORDER_THICKNESS 
+        jg noLeftBounce                      
+        neg ballDX                           
+        mov ballX, BORDER_LEFT + BORDER_THICKNESS 
     noLeftBounce:
 
-        ; bounce off right wall
-        mov eax, ballX                       ; check x position
-        add eax, BALL_SIZE                   ; add ball width
-        cmp eax, BORDER_RIGHT - BORDER_THICKNESS ; past right wall?
-        jl noRightBounce                     ; if not, skip
-        neg ballDX                           ; reverse x direction
-        mov eax, BORDER_RIGHT - BORDER_THICKNESS ; push back inside
+        mov eax, ballX                       
+        add eax, BALL_SIZE                   
+        cmp eax, BORDER_RIGHT - BORDER_THICKNESS 
+        jl noRightBounce                     
+        neg ballDX                           
+        mov eax, BORDER_RIGHT - BORDER_THICKNESS 
         sub eax, BALL_SIZE
         mov ballX, eax
     noRightBounce:
 
-        ; bounce off top wall
-        mov eax, ballY                       ; check y position
-        cmp eax, BORDER_TOP + BORDER_THICKNESS ; past top wall?
-        jg noTopBounce                       ; if not, skip
-        neg ballDY                           ; reverse y direction
-        mov ballY, BORDER_TOP + BORDER_THICKNESS ; push back inside
+        mov eax, ballY                       
+        cmp eax, BORDER_TOP + BORDER_THICKNESS 
+        jg noTopBounce                       
+        neg ballDY                           
+        mov ballY, BORDER_TOP + BORDER_THICKNESS 
     noTopBounce:
 
-        ; bounce off bottom wall (ONLY if solid base active)
-        cmp solidBaseTimer, 0                ; is solid base active?
-        jle noBottomBounce                   ; if not, skip
-        mov eax, ballY                       ; check y position
-        add eax, BALL_SIZE                   ; add ball size
-        cmp eax, BORDER_BOTTOM               ; past bottom wall?
-        jl noBottomBounce                    ; if not, skip
-        neg ballDY                           ; reverse y direction
-        mov eax, BORDER_BOTTOM               ; push back inside
+        cmp solidBaseTimer, 0                
+        jle noBottomBounce                   
+        mov eax, ballY                       
+        add eax, BALL_SIZE                   
+        cmp eax, BORDER_BOTTOM               
+        jl noBottomBounce                    
+        neg ballDY                           
+        mov eax, BORDER_BOTTOM               
         sub eax, BALL_SIZE
         mov ballY, eax
     noBottomBounce:
 
-        ; --- check brick collision ---
-        ; loop through all bricks and see if ball overlaps any
-        xor ecx, ecx                         ; ecx = brick index (0 to 23)
+        xor ecx, ecx                         
     checkBrickLoop:
-        cmp ecx, TOTAL_BRICKS                ; checked all bricks?
-        jge doneBrickCheck                   ; if so, done
+        cmp ecx, TOTAL_BRICKS                
+        jge doneBrickCheck                   
 
-        movzx eax, BYTE PTR [bricks + ecx]   ; is this brick alive?
-        cmp eax, 0                           ; 0 = destroyed
-        je nextBrickCheck                    ; skip dead bricks
+        movzx eax, BYTE PTR [bricks + ecx]   
+        cmp eax, 0                           
+        je nextBrickCheck                    
 
-        ; calculate this brick's position
-        push ecx                             ; save brick index
-        mov eax, ecx                         ; copy index
-        xor edx, edx                         ; clear for division
-        mov ebx, BRICK_COLS                  ; divisor = 8
-        div ebx                              ; eax = row, edx = column
+        ; [Lab 9: Multiplication and Division]
+        ; Calculate 2D Array Row and Column from 1D Index (ecx)
+        push ecx                             
+        mov eax, ecx                         
+        xor edx, edx                         
+        mov ebx, BRICK_COLS                  
+        div ebx                              ; DIV instruction: EDX = Remainder (Col), EAX = Quotient (Row)
+        push edx                             
+        
+        mov ebx, BRICK_HEIGHT + BRICK_GAP    
+        imul eax, ebx                        ; Multiply Row by Height
+        add eax, BRICK_START_Y               
+        mov esi, eax                         ; ESI holds Y pos
+        
+        pop edx                              
+        mov eax, edx                         
+        mov ebx, BRICK_WIDTH + BRICK_GAP     
+        imul eax, ebx                        ; Multiply Col by Width
+        add eax, BRICK_START_X               
+        mov edi, eax                         ; EDI holds X pos
 
-        ; brick Y = BRICK_START_Y + row * (BRICK_HEIGHT + BRICK_GAP)
-        push edx                             ; save column
-        mov ebx, BRICK_HEIGHT + BRICK_GAP    ; row stride
-        imul eax, ebx                        ; row * stride
-        add eax, BRICK_START_Y               ; add start offset
-        mov esi, eax                         ; esi = brick top Y
+        ; Collision bounding box check
+        mov eax, ballX                       
+        add eax, BALL_SIZE                   
+        cmp eax, edi                         
+        jle noBrickHit                       
 
-        ; brick X = BRICK_START_X + col * (BRICK_WIDTH + BRICK_GAP)
-        pop edx                              ; restore column
-        mov eax, edx                         ; column index
-        mov ebx, BRICK_WIDTH + BRICK_GAP     ; column stride
-        imul eax, ebx                        ; col * stride
-        add eax, BRICK_START_X               ; add start offset
-        mov edi, eax                         ; edi = brick left X
+        mov eax, ballX                       
+        mov ebx, edi                         
+        add ebx, BRICK_WIDTH                 
+        cmp eax, ebx                         
+        jge noBrickHit                       
 
-        ; check overlap: ball rect vs brick rect
-        ; ball right > brick left?
-        mov eax, ballX                       ; ball left
-        add eax, BALL_SIZE                   ; ball right edge
-        cmp eax, edi                         ; compare with brick left
-        jle noBrickHit                       ; no overlap
+        mov eax, ballY                       
+        add eax, BALL_SIZE                   
+        cmp eax, esi                         
+        jle noBrickHit                       
 
-        ; ball left < brick right?
-        mov eax, ballX                       ; ball left
-        mov ebx, edi                         ; brick left
-        add ebx, BRICK_WIDTH                 ; brick right edge
-        cmp eax, ebx                         ; compare
-        jge noBrickHit                       ; no overlap
+        mov eax, ballY                       
+        mov ebx, esi                         
+        add ebx, BRICK_HEIGHT                
+        cmp eax, ebx                         
+        jge noBrickHit                       
 
-        ; ball bottom > brick top?
-        mov eax, ballY                       ; ball top
-        add eax, BALL_SIZE                   ; ball bottom edge
-        cmp eax, esi                         ; compare with brick top
-        jle noBrickHit                       ; no overlap
-
-        ; ball top < brick bottom?
-        mov eax, ballY                       ; ball top
-        mov ebx, esi                         ; brick top
-        add ebx, BRICK_HEIGHT                ; brick bottom edge
-        cmp eax, ebx                         ; compare
-        jge noBrickHit                       ; no overlap
-
-        ; --- hit! destroy this brick ---
-        pop ecx                              ; restore brick index
-        mov BYTE PTR [bricks + ecx], 0       ; mark brick as dead
-        neg ballDY                           ; bounce the ball vertically
-        add score, 10                        ; add 10 points
-        dec bricksLeft                       ; one less brick
-
-        ; beep sound (middle C, short duration)
+        ; Brick is Hit!
+        pop ecx                              
+        mov BYTE PTR [bricks + ecx], 0       ; [Lab 3: Memory Write]
+        neg ballDY                           
+        add score, 10                        
+        dec bricksLeft                       
         invoke Beep, 261, 20
 
-        ; check if red brick (row 2)
-        mov eax, ecx                         ; copy index
-        xor edx, edx                         ; clear
-        mov ebx, BRICK_COLS                  ; cols per row
-        div ebx                              ; eax = row
-        cmp eax, 2                           ; is it row 2 (red)?
-        jne noPowerup                        ; if not, skip
-        mov solidBaseTimer, 300              ; 300 ticks = 5 seconds
-    noPowerup:
+        mov eax, ecx                         
+        xor edx, edx                         
+        mov ebx, BRICK_COLS                  
+        div ebx                              
+        cmp eax, 2                           
+        jne noPowerup1                        
+        mov solidBaseTimer, 300              
+    noPowerup1:
 
-        ; check if all bricks are destroyed (win condition)
-        cmp bricksLeft, 0                    ; any bricks remaining?
-        jg doneBrickCheck                    ; if yes, continue
+        cmp bricksLeft, 0                    
+        jg doneBrickCheck                    
         
-        ; check for time bonus
-        cmp timeSeconds, 120                 ; did they finish in under 2 minutes?
-        jg skipBonus                         ; if took longer, no bonus
-        add score, 50                        ; add 50 bonus points
-    skipBonus:
+        inc currentRound                     
+        mov bricksLeft, TOTAL_BRICKS
+        mov ballActive, 0
+        mov ball2Active, 0
+        mov powerActive, 0
         
-        mov gameState, 1                     ; player wins!
-        mov ballActive, 0                    ; stop the ball
-        jmp doneBrickCheck                   ; done checking
+        CALL ResetBricks                     ; [Lab 6: Call Procedure to use Stack operations]
+        jmp doneBrickCheck                   
 
     noBrickHit:
-        pop ecx                              ; restore brick index
+        pop ecx                              
     nextBrickCheck:
-        inc ecx                              ; next brick
-        jmp checkBrickLoop                   ; keep checking
+        inc ecx                              
+        jmp checkBrickLoop                   
     doneBrickCheck:
 
-        ; check paddle collision
-        mov eax, ballY                       ; ball y position
-        add eax, BALL_SIZE                   ; bottom edge of ball
-        cmp eax, PADDLE_Y                    ; reached paddle level?
-        jl noPaddleBounce                    ; if above paddle, skip
-        cmp eax, PADDLE_Y + PADDLE_HEIGHT    ; below paddle bottom?
-        jg ballFell                          ; ball fell past paddle
-        mov eax, ballX                       ; ball x position
-        add eax, BALL_SIZE                   ; right edge of ball
-        cmp eax, paddleX                     ; left of paddle?
-        jl ballFell                          ; missed paddle
-        mov eax, ballX                       ; ball x position
-        mov ecx, paddleX                     ; paddle left edge
-        add ecx, PADDLE_WIDTH                ; paddle right edge
-        cmp eax, ecx                         ; right of paddle?
-        jg ballFell                          ; missed paddle
+        mov eax, ballY                       
+        add eax, BALL_SIZE                   
+        cmp eax, PADDLE_Y                    
+        jl noPaddleBounce                    
+        cmp eax, PADDLE_Y + PADDLE_HEIGHT    
+        jg ballFell                          
+        mov eax, ballX                       
+        add eax, BALL_SIZE                   
+        cmp eax, paddleX                     
+        jl ballFell                          
+        mov eax, ballX                       
+        mov ecx, paddleX                     
+        add ecx, PADDLE_WIDTH                
+        cmp eax, ecx                         
+        jg ballFell                          
         
-        ; hit the paddle!
-        neg ballDY                           ; bounce upward
+        neg ballDY                           
         
-        ; edge mechanic: change x direction based on where it hit
-        mov eax, ballX                       ; get ball x
-        add eax, BALL_SIZE / 2               ; ball center
-        mov ecx, paddleX                     ; paddle left
-        add ecx, PADDLE_WIDTH / 3            ; left third boundary
-        cmp eax, ecx                         ; hit left third?
-        jg checkRightEdge                    ; if not, check right
-        mov ballDX, -BALL_SPEED              ; force ball left
+        mov eax, BALL_SIZE
+        shr eax, 1                           ; [Lab 8: Bitwise] divide by 2
+        add eax, ballX                       ; eax = ball center X
+        
+        mov ecx, PADDLE_WIDTH
+        mov ebx, 3
+        xor edx, edx
+        push eax
+        mov eax, ecx
+        div ebx                              ; [Lab 9: Division] paddle_width / 3
+        mov ecx, eax
+        pop eax
+        
+        add ecx, paddleX                     ; Left third boundary
+        cmp eax, ecx                         
+        jg checkRightEdge                    
+        mov ballDX, -BALL_SPEED              
         jmp donePaddleEdge
     checkRightEdge:
-        mov ecx, paddleX                     ; paddle left
-        add ecx, (PADDLE_WIDTH * 2) / 3      ; right third boundary
-        cmp eax, ecx                         ; hit right third?
-        jl donePaddleEdge                    ; if not, it's middle (keep current dx)
-        mov ballDX, BALL_SPEED               ; force ball right
+        mov ecx, PADDLE_WIDTH
+        mov ebx, 3
+        push eax
+        mov eax, ecx
+        div ebx                              
+        shl eax, 1                           ; [Lab 8: Bitwise Shift] multiply by 2 to get Right third boundary
+        mov ecx, eax
+        pop eax
+        add ecx, paddleX                     
+        cmp eax, ecx                         
+        jl donePaddleEdge                    
+        mov ballDX, BALL_SPEED               
     donePaddleEdge:
 
-        mov eax, PADDLE_Y                    ; reposition ball
-        sub eax, BALL_SIZE                   ; above paddle
-        mov ballY, eax                       ; update position
-        jmp noPaddleBounce                   ; done with bounce
+        mov eax, PADDLE_Y                    
+        sub eax, BALL_SIZE                   
+        mov ballY, eax                       
+        jmp noPaddleBounce                   
 
     ballFell:
-        ; if solid base is active, do not die, let ball hit bottom
-        cmp solidBaseTimer, 0                ; is solid base active?
-        jg noPaddleBounce                    ; just keep moving
+        cmp solidBaseTimer, 0                
+        jg noPaddleBounce                    
         
-        ; ball went below paddle, lose a life
-        dec lives                            ; subtract one life
-        cmp lives, 0                         ; any lives left?
-        jg stillAlive                        ; if yes, continue
-        mov gameState, 2                     ; game over - player lost
-        mov ballActive, 0                    ; stop ball
-        jmp noPaddleBounce                   ; skip reset
+        dec lives                            
+        cmp lives, 0                         
+        jg stillAlive                        
+        mov gameState, 2                     
+        mov ballActive, 0                    
+        mov ball2Active, 0
+        jmp noPaddleBounce                   
     stillAlive:
-        mov ballActive, 0                    ; deactivate ball
-        mov eax, paddleX                     ; center ball on paddle
-        add eax, PADDLE_WIDTH / 2            ; middle of paddle
-        sub eax, BALL_SIZE / 2               ; center the ball
-        mov ballX, eax                       ; set ball x
-        mov eax, PADDLE_Y                    ; above paddle
-        sub eax, BALL_SIZE                   ; position on top
-        mov ballY, eax                       ; set ball y
+        mov ballActive, 0                    
+        mov ball2Active, 0                   
+        
+        mov eax, PADDLE_WIDTH
+        shr eax, 1                           ; [Lab 8: Shift] center ball
+        add eax, paddleX                     
+        sub eax, BALL_SIZE / 2               
+        mov ballX, eax                       
+        
+        mov eax, PADDLE_Y                    
+        sub eax, BALL_SIZE                   
+        mov ballY, eax                       
 
     noPaddleBounce:
     skipBallMove:
 
-        ; if ball is on paddle, track paddle position
-        cmp ballActive, 0                    ; ball sitting on paddle?
-        jne skipTrack                        ; if moving, skip
-        mov eax, paddleX                     ; get paddle x
-        add eax, PADDLE_WIDTH / 2            ; center of paddle
-        sub eax, BALL_SIZE / 2               ; center ball on it
-        mov ballX, eax                       ; update ball x
-        mov eax, PADDLE_Y                    ; just above paddle
-        sub eax, BALL_SIZE                   ; on top of paddle
-        mov ballY, eax                       ; update ball y
+
+        ; ==================================
+        ; BALL 2 MOVEMENT & COLLISION
+        ; ==================================
+        cmp ball2Active, 0
+        je skipBall2Move
+
+        mov eax, ball2X                       
+        add eax, ball2DX                      
+        mov ball2X, eax                       
+        mov eax, ball2Y                       
+        add eax, ball2DY                      
+        mov ball2Y, eax                       
+
+        mov eax, ball2X                       
+        cmp eax, BORDER_LEFT + BORDER_THICKNESS 
+        jg noLeftBounce2                      
+        neg ball2DX                           
+        mov ball2X, BORDER_LEFT + BORDER_THICKNESS 
+    noLeftBounce2:
+
+        mov eax, ball2X                       
+        add eax, BALL_SIZE                   
+        cmp eax, BORDER_RIGHT - BORDER_THICKNESS 
+        jl noRightBounce2                     
+        neg ball2DX                           
+        mov eax, BORDER_RIGHT - BORDER_THICKNESS 
+        sub eax, BALL_SIZE
+        mov ball2X, eax
+    noRightBounce2:
+
+        mov eax, ball2Y                       
+        cmp eax, BORDER_TOP + BORDER_THICKNESS 
+        jg noTopBounce2                       
+        neg ball2DY                           
+        mov ball2Y, BORDER_TOP + BORDER_THICKNESS 
+    noTopBounce2:
+
+        cmp solidBaseTimer, 0                
+        jle noBottomBounce2                   
+        mov eax, ball2Y                       
+        add eax, BALL_SIZE                   
+        cmp eax, BORDER_BOTTOM               
+        jl noBottomBounce2                    
+        neg ball2DY                           
+        mov eax, BORDER_BOTTOM               
+        sub eax, BALL_SIZE
+        mov ball2Y, eax
+    noBottomBounce2:
+
+        xor ecx, ecx                         
+    checkBrickLoop2:
+        cmp ecx, TOTAL_BRICKS                
+        jge doneBrickCheck2                   
+
+        movzx eax, BYTE PTR [bricks + ecx]   
+        cmp eax, 0                           
+        je nextBrickCheck2                    
+
+        push ecx                             
+        mov eax, ecx                         
+        xor edx, edx                         
+        mov ebx, BRICK_COLS                  
+        div ebx                              
+        push edx                             
+        mov ebx, BRICK_HEIGHT + BRICK_GAP    
+        imul eax, ebx                        
+        add eax, BRICK_START_Y               
+        mov esi, eax                         
+        pop edx                              
+        mov eax, edx                         
+        mov ebx, BRICK_WIDTH + BRICK_GAP     
+        imul eax, ebx                        
+        add eax, BRICK_START_X               
+        mov edi, eax                         
+
+        mov eax, ball2X                       
+        add eax, BALL_SIZE                   
+        cmp eax, edi                         
+        jle noBrickHit2                       
+
+        mov eax, ball2X                       
+        mov ebx, edi                         
+        add ebx, BRICK_WIDTH                 
+        cmp eax, ebx                         
+        jge noBrickHit2                       
+
+        mov eax, ball2Y                       
+        add eax, BALL_SIZE                   
+        cmp eax, esi                         
+        jle noBrickHit2                       
+
+        mov eax, ball2Y                       
+        mov ebx, esi                         
+        add ebx, BRICK_HEIGHT                
+        cmp eax, ebx                         
+        jge noBrickHit2                       
+
+        pop ecx                              
+        mov BYTE PTR [bricks + ecx], 0       
+        neg ball2DY                           
+        add score, 10                        
+        dec bricksLeft                       
+        invoke Beep, 261, 20
+
+        mov eax, ecx                         
+        xor edx, edx                         
+        mov ebx, BRICK_COLS                  
+        div ebx                              
+        cmp eax, 2                           
+        jne noPowerup2                        
+        mov solidBaseTimer, 300              
+    noPowerup2:
+
+        cmp bricksLeft, 0                    
+        jg doneBrickCheck2                    
+        
+        inc currentRound                     
+        mov bricksLeft, TOTAL_BRICKS
+        mov ballActive, 0
+        mov ball2Active, 0
+        mov powerActive, 0
+        
+        CALL ResetBricks                     ; [Lab 6: Procedure usage]
+        jmp doneBrickCheck2                   
+
+    noBrickHit2:
+        pop ecx                              
+    nextBrickCheck2:
+        inc ecx                              
+        jmp checkBrickLoop2                   
+    doneBrickCheck2:
+
+        mov eax, ball2Y                       
+        add eax, BALL_SIZE                   
+        cmp eax, PADDLE_Y                    
+        jl noPaddleBounce2                    
+        cmp eax, PADDLE_Y + PADDLE_HEIGHT    
+        jg ball2Fell                          
+        mov eax, ball2X                       
+        add eax, BALL_SIZE                   
+        cmp eax, paddleX                     
+        jl ball2Fell                          
+        mov eax, ball2X                       
+        mov ecx, paddleX                     
+        add ecx, PADDLE_WIDTH                
+        cmp eax, ecx                         
+        jg ball2Fell                          
+        
+        neg ball2DY                           
+        
+        mov eax, ball2X                       
+        add eax, BALL_SIZE / 2               
+        mov ecx, paddleX                     
+        add ecx, PADDLE_WIDTH / 3            
+        cmp eax, ecx                         
+        jg checkRightEdge2                    
+        mov ball2DX, -BALL_SPEED              
+        jmp donePaddleEdge2
+    checkRightEdge2:
+        mov ecx, paddleX                     
+        add ecx, (PADDLE_WIDTH * 2) / 3      
+        cmp eax, ecx                         
+        jl donePaddleEdge2                    
+        mov ball2DX, BALL_SPEED               
+    donePaddleEdge2:
+
+        mov eax, PADDLE_Y                    
+        sub eax, BALL_SIZE                   
+        mov ball2Y, eax                       
+        jmp noPaddleBounce2                   
+
+    ball2Fell:
+        cmp solidBaseTimer, 0                
+        jg noPaddleBounce2                    
+        mov ball2Active, 0                   
+    noPaddleBounce2:
+    skipBall2Move:
+
+        cmp ballActive, 0                    
+        jne skipTrack                        
+        
+        mov eax, PADDLE_WIDTH
+        shr eax, 1                           ; [Lab 8: Shift right] Divide by 2
+        add eax, paddleX                     
+        sub eax, BALL_SIZE / 2               
+        mov ballX, eax                       
+        mov eax, PADDLE_Y                    
+        sub eax, BALL_SIZE                   
+        mov ballY, eax                       
     skipTrack:
 
-        invoke InvalidateRect, hWin, NULL, FALSE ; mark window for repaint (FALSE = don't erase background)
-        xor eax, eax                         ; return 0
+        invoke InvalidateRect, hWin, NULL, FALSE 
+        xor eax, eax                         
         ret
 
     .ELSEIF eax == WM_KEYDOWN
-        mov eax, wParam                      ; get the key code
+        mov eax, wParam                      
 
-        ; --- global quit ---
         .IF eax == VK_ESCAPE
             invoke PostQuitMessage, 0
             xor eax, eax
             ret
         .ENDIF
 
-        ; --- branch input based on game state ---
-        cmp gameState, 3                     ; title screen?
+        cmp gameState, 3                     
         je titleInput
-        cmp gameState, 4                     ; instruction screen?
+        cmp gameState, 4                     
         je instrInput
-        cmp gameState, 1                     ; won?
+        cmp gameState, 1                     
         je endInput
-        cmp gameState, 2                     ; lost?
+        cmp gameState, 2                     
         je endInput
 
-        ; --- playing input ---
-        .IF eax == VK_LEFT                   ; left arrow key
-            mov eax, paddleX                 ; get current paddle position
-            sub eax, PADDLE_SPEED            ; move left by speed amount
-            cmp eax, BORDER_LEFT + BORDER_THICKNESS ; check left boundary
-            jl doneKey                       ; if past boundary, dont move
-            mov paddleX, eax                 ; update paddle position
-        .ELSEIF eax == VK_RIGHT              ; right arrow key
-            mov eax, paddleX                 ; get current paddle position
-            add eax, PADDLE_SPEED            ; move right by speed amount
-            add eax, PADDLE_WIDTH            ; check right edge of paddle
-            cmp eax, BORDER_RIGHT - BORDER_THICKNESS ; check right boundary
-            jg doneKey                       ; if past boundary, dont move
-            sub eax, PADDLE_WIDTH            ; restore to left edge
-            mov paddleX, eax                 ; update paddle position
-        .ELSEIF eax == VK_SPACE              ; space bar
-            cmp ballActive, 0                ; is ball on paddle?
-            jne doneKey                      ; if already moving, skip
-            mov ballActive, 1                ; launch the ball
-            mov ballDX, BALL_SPEED           ; set x velocity right
-            mov eax, BALL_SPEED              ; get speed value
-            neg eax                          ; make it negative (upward)
-            mov ballDY, eax                  ; set y velocity up
+        .IF eax == VK_LEFT                   
+            mov eax, paddleX                 
+            sub eax, PADDLE_SPEED            
+            cmp eax, BORDER_LEFT + BORDER_THICKNESS 
+            jl doneKey                       
+            mov paddleX, eax                 
+        .ELSEIF eax == VK_RIGHT              
+            mov eax, paddleX                 
+            add eax, PADDLE_SPEED            
+            add eax, PADDLE_WIDTH            
+            cmp eax, BORDER_RIGHT - BORDER_THICKNESS 
+            jg doneKey                       
+            sub eax, PADDLE_WIDTH            
+            mov paddleX, eax                 
+        .ELSEIF eax == VK_SPACE              
+            cmp ballActive, 0                
+            jne doneKey                      
+            mov ballActive, 1                
+            mov ballDX, BALL_SPEED           
+            mov eax, BALL_SPEED              
+            neg eax                          
+            mov ballDY, eax                  
         .ENDIF
         jmp doneKey
 
     titleInput:
-        .IF eax == VK_RETURN                 ; play game
-            mov gameState, 0                 ; playing state
-            mov ballActive, 1                ; auto-launch the ball
-            mov ballDX, BALL_SPEED           ; set x velocity right
-            mov eax, BALL_SPEED              ; get speed value
-            neg eax                          ; make it negative (upward)
-            mov ballDY, eax                  ; set y velocity up
-        .ELSEIF eax == VK_I                  ; instructions
-            mov gameState, 4                 ; instruction state
+        .IF eax == VK_RETURN                 
+            mov gameState, 0                 
+            mov ballActive, 1                
+            mov ballDX, BALL_SPEED           
+            mov eax, BALL_SPEED              
+            neg eax                          
+            mov ballDY, eax                  
+        .ELSEIF eax == VK_I                  
+            mov gameState, 4                 
         .ENDIF
         jmp doneKey
 
     instrInput:
-        .IF eax == VK_RETURN                 ; play game from instructions
-            mov gameState, 0                 ; playing state
-            mov ballActive, 1                ; auto-launch the ball
-            mov ballDX, BALL_SPEED           ; set x velocity right
-            mov eax, BALL_SPEED              ; get speed value
-            neg eax                          ; make it negative (upward)
-            mov ballDY, eax                  ; set y velocity up
+        .IF eax == VK_RETURN                 
+            mov gameState, 0                 
+            mov ballActive, 1                
+            mov ballDX, BALL_SPEED           
+            mov eax, BALL_SPEED              
+            neg eax                          
+            mov ballDY, eax                  
         .ENDIF
         jmp doneKey
 
     endInput:
-        .IF eax == VK_R                      ; restart
-            ; --- restart the game ---
-            mov gameState, 0                 ; reset game state to playing
-            mov score, 0                     ; reset score to zero
-            mov lives, 3                     ; reset lives to 3
-            mov timeSeconds, 0               ; reset time
-            mov timerTicks, 0                ; reset ticks
-            mov solidBaseTimer, 0            ; reset solid base
-            mov bricksLeft, TOTAL_BRICKS     ; reset brick count
-            mov paddleX, 280                 ; reset paddle position
+        .IF eax == VK_R                      
+            mov gameState, 0                 
+            mov score, 0                     
+            mov lives, 3  
+            mov currentRound, 1              
+            mov timeSeconds, 0               
+            mov timerTicks, 0                
+            mov solidBaseTimer, 0            
+            mov bricksLeft, TOTAL_BRICKS     
+            mov paddleX, 280                 
 
-            ; reset all bricks to alive
-            mov ecx, 0                       ; brick index counter
-        resetBricks:
-            mov BYTE PTR [bricks + ecx], 1   ; mark brick as alive
-            inc ecx                          ; next brick
-            cmp ecx, TOTAL_BRICKS            ; all bricks reset?
-            jl resetBricks                   ; keep going if not
+            CALL ResetBricks                 ; [Lab 6: Calling Stack Procedure]
 
-            ; auto-launch the ball
-            mov ballActive, 1                ; ball active
-            mov ballDX, BALL_SPEED           ; set x velocity right
-            mov eax, BALL_SPEED              ; get speed value
-            neg eax                          ; make it negative (upward)
-            mov ballDY, eax                  ; set y velocity up
-            mov eax, paddleX                 ; center on paddle
-            add eax, PADDLE_WIDTH / 2        ; middle of paddle
-            sub eax, BALL_SIZE / 2           ; center ball
-            mov ballX, eax                   ; set ball x
-            mov eax, PADDLE_Y                ; above paddle
-            sub eax, BALL_SIZE               ; on top
-            mov ballY, eax                   ; set ball y
-        .ELSEIF eax == VK_Q                  ; quit game
+            mov ballActive, 1                
+            mov ball2Active, 0               
+            mov powerActive, 0               
+            mov ballDX, BALL_SPEED           
+            mov eax, BALL_SPEED              
+            neg eax                          
+            mov ballDY, eax                  
+            
+            mov eax, PADDLE_WIDTH
+            shr eax, 1                       ; [Lab 8: Bitwise Shift]
+            add eax, paddleX                 
+            sub eax, BALL_SIZE / 2           
+            mov ballX, eax                   
+            mov eax, PADDLE_Y                
+            sub eax, BALL_SIZE               
+            mov ballY, eax                   
+        .ELSEIF eax == VK_Q                  
             invoke PostQuitMessage, 0
         .ENDIF
         jmp doneKey
 
     doneKey:
-        xor eax, eax                         ; return 0
+        xor eax, eax                         
         ret
 
     .ELSEIF eax == WM_DESTROY
-        invoke KillTimer, hWin, TIMER_ID     ; stop the timer
-        invoke PostQuitMessage, 0            ; tell windows to quit
-        xor eax, eax                         ; return 0
+        invoke KillTimer, hWin, TIMER_ID     
+        invoke PostQuitMessage, 0            
+        xor eax, eax                         
         ret
     .ENDIF
 
@@ -912,9 +1183,6 @@ WndProc PROC hWin:DWORD, uMsg:DWORD, wParam:DWORD, lParam:DWORD
     ret
 WndProc ENDP
 
-; --------------------------------------------
-; Main Entry Point
-; --------------------------------------------
 main PROC
     LOCAL wc:WNDCLASSEX
     LOCAL msg:MSG
@@ -922,7 +1190,6 @@ main PROC
     invoke GetModuleHandleA, NULL
     mov hInstance, eax
 
-    ; setup window class
     mov wc.cbSize, SIZEOF WNDCLASSEX
     mov wc.style, CS_HREDRAW or CS_VREDRAW
     mov wc.lpfnWndProc, OFFSET WndProc
@@ -935,14 +1202,13 @@ main PROC
     mov wc.hIconSm, eax
     invoke LoadCursorA, NULL, IDC_ARROW
     mov wc.hCursor, eax
-    invoke GetStockObject, 4                 ; 4 = BLACK_BRUSH
+    invoke GetStockObject, 4                 
     mov wc.hbrBackground, eax
     mov wc.lpszMenuName, NULL
     mov wc.lpszClassName, OFFSET className
 
     invoke RegisterClassExA, ADDR wc
 
-    ; create the game window
     invoke CreateWindowExA, 0, \
            ADDR className, ADDR windowTitle, \
            WS_VISIBLE or WS_OVERLAPPED or WS_CAPTION or WS_SYSMENU or WS_MINIMIZEBOX, \
@@ -954,7 +1220,6 @@ main PROC
     invoke ShowWindow, hwndMain, SW_SHOW
     invoke UpdateWindow, hwndMain
 
-    ; message loop
     msgLoop:
         invoke GetMessageA, ADDR msg, NULL, 0, 0
         cmp eax, 0
